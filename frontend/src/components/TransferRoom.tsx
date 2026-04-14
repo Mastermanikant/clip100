@@ -37,6 +37,7 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
   const [myId, setMyId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(true);
+  const [qrUrl, setQrUrl] = useState<string>('');
 
   useEffect(() => {
     const init = async () => {
@@ -62,6 +63,7 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
         }, false);
         
         setRtcManager(manager);
+        setQrUrl(`${window.location.origin}/d/${roomId}`);
 
         // Fetch Room Data
         const res = await fetch(`/api/room/join`, {
@@ -247,14 +249,8 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
 
           <div className="flex-1 p-6 overflow-y-auto space-y-4">
             <AnimatePresence mode="wait">
-              {activeTab === 'chat' ? (
-                <motion.div 
-                  key="chat"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="space-y-4"
-                >
+              {activeTab === 'chat' && (
+                <motion.div key="chat" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-4">
                   {messages.length === 0 ? (
                     <div className="h-[50vh] flex flex-col items-center justify-center text-gray-700 space-y-4">
                       <Zap className="w-16 h-16 opacity-10 animate-pulse" />
@@ -267,7 +263,7 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
                           <div className={`group relative max-w-[80%] p-4 rounded-[1.5rem] ${msg.received ? 'bg-white/5 border border-white/5' : 'bg-blue-600 shadow-lg shadow-blue-600/20'}`}>
                             <p className="text-sm leading-relaxed">{msg.content}</p>
                             <button 
-                              onClick={() => { navigator.clipboard.writeText(msg.content || ''); alert('Copied to Clipboard!'); }}
+                              onClick={() => { navigator.clipboard.writeText(msg.content || ''); alert('Copied!'); }}
                               className="absolute -right-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all"
                             >
                               <Copy className="w-4 h-4 text-gray-500" />
@@ -275,37 +271,47 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
                           </div>
                         ) : (
                           <div className="w-full max-w-[320px]">
-                            <TransferItem 
-                              name={msg.fileName}
-                              size={msg.fileSize}
-                              progress={msg.progress}
-                              status={msg.status}
-                              isIncoming={msg.received}
-                            />
+                            <TransferItem name={msg.fileName} size={msg.fileSize} progress={msg.progress} status={msg.status} isIncoming={msg.received} />
                           </div>
                         )}
                       </div>
                     ))
                   )}
                 </motion.div>
-              ) : (
-                  <div className="h-full flex flex-col space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500">Global Memo</h3>
-                      <button 
-                        onClick={() => handleUpdateNotebook(notebookText)}
-                        className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/20 flex items-center gap-2"
-                      >
-                        <Check className="w-3 h-3" /> Save to Cloud
-                      </button>
-                    </div>
-                    <textarea 
-                      placeholder="Type anything here... it stays in the room for 30 days."
-                      value={notebookText}
-                      onChange={(e) => setNotebookText(e.target.value)}
-                      className="w-full h-full min-h-[50vh] bg-transparent text-gray-300 p-6 border border-white/5 rounded-[2rem] focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-none font-light leading-relaxed scrollbar-hide bg-white/[0.02]"
-                    />
+              )}
+
+              {activeTab === 'notebook' && (
+                <motion.div key="notebook" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="h-full flex flex-col space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500">Global Memo</h3>
+                    <button onClick={() => handleUpdateNotebook(notebookText)} className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/20 flex items-center gap-2">
+                      <Check className="w-3 h-3" /> Save to Cloud
+                    </button>
                   </div>
+                  <textarea 
+                    placeholder="Type anything here... it stays in the room for 30 days."
+                    value={notebookText}
+                    onChange={(e) => setNotebookText(e.target.value)}
+                    className="w-full h-full min-h-[50vh] bg-transparent text-gray-300 p-6 border border-white/5 rounded-[2rem] focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-none font-light leading-relaxed scrollbar-hide bg-white/[0.02]"
+                  />
+                </motion.div>
+              )}
+
+              {activeTab === 'clipboard' && (
+                <motion.div key="clipboard" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="h-full flex flex-col space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500">Universal Clipboard</h3>
+                    <button onClick={() => { navigator.clipboard.writeText(notebookText); alert('Clipboard Sync Active!'); }} className="bg-green-600 hover:bg-green-500 px-6 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                      <Copy className="w-3 h-3" /> Copy All
+                    </button>
+                  </div>
+                  <textarea 
+                    placeholder="Instant Sync across devices..."
+                    value={notebookText}
+                    onChange={(e) => { setNotebookText(e.target.value); handleUpdateNotebook(e.target.value); }}
+                    className="w-full h-full min-h-[50vh] bg-transparent text-gray-300 p-6 border border-white/5 rounded-[2rem] focus:outline-none focus:ring-1 focus:ring-green-500/50 resize-none font-mono text-sm leading-relaxed scrollbar-hide bg-white/[0.02]"
+                  />
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
@@ -340,7 +346,7 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
           <div className="bg-[#0f0f0f] border border-white/10 rounded-[2rem] p-8 text-center space-y-6">
             <div className="text-xs font-black uppercase tracking-[0.3em] text-gray-600">Secure Pair</div>
             <div className="bg-white p-6 rounded-[2rem] inline-block shadow-2xl">
-              <QRCodeSVG value={`${window.location.origin}/d/${roomId}`} size={180} />
+              {qrUrl && <QRCodeSVG value={qrUrl} size={180} />}
             </div>
             <p className="text-[10px] text-gray-500 leading-relaxed italic">
               "Indian Jugad" tech: Scan to instantly bridge devices via direct P2P connection.

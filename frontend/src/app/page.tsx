@@ -233,10 +233,10 @@ export default function Home() {
                   <span>Rooms stay alive for 30 days</span>
                 </div>
                 <button 
-                  onClick={() => alert('Pro features coming soon! This will unlock 1Gbps+ speeds and remove ads.')}
-                  className="flex items-center gap-2 text-xs font-bold text-amber-500 bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20 hover:bg-amber-500/20 transition-all"
+                  onClick={() => { setIsPro(true); alert('👑 PRO MODE ACTIVATED! 1Gbps channels ready.'); }}
+                  className={`flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${isPro ? 'bg-amber-500 text-black border-amber-500' : 'text-amber-500 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/20'}`}
                 >
-                  <Crown className="w-3 h-3" /> Go Pro
+                  <Crown className="w-3 h-3" /> {isPro ? 'Pro Active' : 'Go Pro'}
                 </button>
               </div>
             </div>
