@@ -18,43 +18,66 @@ export default function TransferRoom() {
   const [activeTab, setActiveTab] = useState<'chat' | 'notebook'>('chat');
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const notebookTimerRef = useRef<any>(null);
+  const [isJoining, setIsJoining] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const init = async () => {
       if (!roomId) return;
       
-      // Init Ably
-      const client = await getAblyClient();
-      const channel = getRoomChannel(client, roomId);
-      
-      // Init WebRTC
-      const manager = new WebRTCManager(roomId, client, channel, (data) => {
-        setMessages((prev) => [...prev, { ...data, timestamp: Date.now(), received: true }]);
-      }, false); // isPro = false for now
-      
-      setRtcManager(manager);
+      try {
+        // Secure Join Validation
+        const joinRes = await fetch('/api/room/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId, passwordHash: '' }) // Pass real code if needed
+        });
+        
+        if (!joinRes.ok) throw new Error('Could not join room');
+        
+        // Init Ably
+        const client = await getAblyClient();
+        const channel = getRoomChannel(client, roomId);
+        
+        // Init WebRTC
+        const manager = new WebRTCManager(roomId, client, channel, (data) => {
+          setMessages((prev) => [...prev, { ...data, timestamp: Date.now(), received: true }]);
+        }, false);
+        
+        setRtcManager(manager);
 
-      // Fetch Notebook
-      const res = await fetch(`/api/room/notebook?roomId=${roomId}`);
-      const data = await res.json();
-      setNotebookText(data.notebook);
+        // Fetch Notebook
+        const res = await fetch(`/api/room/notebook?roomId=${roomId}`);
+        const data = await res.json();
+        setNotebookText(data.notebook);
+        setIsJoining(false);
 
-      return () => {
-        manager.cleanup();
-        channel.unsubscribe();
-      };
+        return () => {
+          manager.cleanup();
+          channel.unsubscribe();
+        };
+      } catch (err: any) {
+        setError(err.message);
+        setIsJoining(false);
+      }
     };
 
     init();
   }, [roomId]);
 
-  const handleUpdateNotebook = async (text: string) => {
+  const handleUpdateNotebook = (text: string) => {
     setNotebookText(text);
-    await fetch('/api/room/notebook', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roomId, notebookText: text })
-    });
+    
+    // Notebook Debounce JUGAD: Wait 1s after last keystroke before saving to KV
+    if (notebookTimerRef.current) clearTimeout(notebookTimerRef.current);
+    notebookTimerRef.current = setTimeout(async () => {
+      await fetch('/api/room/notebook', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, notebookText: text })
+      });
+    }, 1000);
   };
 
   const handleSendMessage = () => {
@@ -91,6 +114,30 @@ export default function TransferRoom() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  if (isJoining) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Zap className="w-12 h-12 text-blue-500 animate-pulse" />
+          <p className="text-gray-500 font-mono text-xs uppercase tracking-widest">Bridging secure room...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+        <div className="max-w-md w-full bg-white/5 border border-red-500/20 p-8 rounded-[2rem] text-center space-y-4">
+          <Shield className="w-12 h-12 text-red-500 mx-auto" />
+          <h2 className="text-xl font-bold">Access Denied</h2>
+          <p className="text-sm text-gray-500">{error}</p>
+          <button onClick={resetRoom} className="px-6 py-2 bg-white/10 rounded-xl text-sm font-bold">Try Another Room</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col p-6 max-w-6xl mx-auto w-full">

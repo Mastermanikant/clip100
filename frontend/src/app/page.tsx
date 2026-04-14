@@ -30,11 +30,9 @@ export default function Home() {
 
   const handleCreateRoom = () => {
     // MONETIZATION JUGAD: 
-    // For now, this is a free simulation. 
-    // To monetize: Integrate Google AdSense or a Reward Video API here.
-    // User must finish the 30s timer to proceed to executeCreateRoom().
+    // Set this to 1s for quick testing, but can be 30s+ for production.
     setShowAd(true);
-    setAdTimer(3); // Increase this to 30 for production
+    setAdTimer(1); 
   };
 
   const executeCreateRoom = async () => {
@@ -62,14 +60,27 @@ export default function Home() {
   };
 
   const handleJoinRoom = async () => {
-    if (!inputCode) return;
     setLoading(true);
     setError('');
     const passwordHash = password ? await hashPassword(password) : '';
 
-    // Logic for join API omitted for brevity, using roomId directly for now
-    setRoom(inputCode, inputCode, false);
-    setLoading(false);
+    try {
+      const res = await fetch('/api/room/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: inputCode, passwordHash })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRoom(inputCode, inputCode, false);
+      } else {
+        setError(data.message || 'Room not found');
+      }
+    } catch (err) {
+      setError('Join failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (roomId) return <TransferRoom />;

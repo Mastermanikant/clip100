@@ -1,20 +1,13 @@
-import Ably from 'ably';
+import * as Ably from 'ably';
 import { NextResponse } from 'next/server';
 
-export async function GET(req: Request) {
+export async function GET() {
   if (!process.env.ABLY_API_KEY) {
-    return NextResponse.json({ error: 'Ably API Key not configured' }, { status: 500 });
+    return NextResponse.json({ error: 'Missing ABLY_API_KEY' }, { status: 500 });
   }
 
-  const client = new Ably.Rest(process.env.ABLY_API_KEY);
+  const client = new Ably.Realtime(process.env.ABLY_API_KEY);
+  const tokenRequestData = await client.auth.createTokenRequest({ clientId: 'frank-drop-user-' + Math.random().toString(36).substring(7) });
   
-  try {
-    const tokenRequestData = await client.auth.createTokenRequest({
-      clientId: 'frank-drop-client',
-    });
-    return NextResponse.json(tokenRequestData);
-  } catch (error) {
-    console.error('Ably token error:', error);
-    return NextResponse.json({ error: 'Failed to create token request' }, { status: 500 });
-  }
+  return NextResponse.json(tokenRequestData);
 }

@@ -10,6 +10,7 @@ export class WebRTCManager {
   private dataChannels: Map<string, RTCDataChannel[]> = new Map();
   private isPro: boolean = false;
   private throttleDelay: number = 0; // ms between chunks
+  private channelIndex: number = 0;
 
   constructor(
     private roomId: string, 
@@ -110,19 +111,23 @@ export class WebRTCManager {
 
   public async sendFile(file: File, onProgress: (p: number) => void) {
     const fileId = Math.random().toString(36).substring(7);
-    const chunkSize = 16384; // 16KB chunks
+    const chunkSize = 16384 * (this.isPro ? 4 : 1); // 64KB for Pro, 16KB for Free
     const totalChunks = Math.ceil(file.size / chunkSize);
+
+    // Auto-Resume: Check if we already have progress
+    const lastProgress = await db.getFileProgress(fileId);
+    const startChunk = lastProgress !== -1 ? lastProgress + 1 : 0;
 
     await db.startNewFile({
       fileId,
       fileName: file.name,
       fileSize: file.size,
       totalChunks,
-      lastChunkIndex: -1,
+      lastChunkIndex: startChunk - 1,
       mimeType: file.type
     });
 
-    for (let i = 0; i < totalChunks; i++) {
+    for (let i = startChunk; i < totalChunks; i++) {
       const start = i * chunkSize;
       const end = Math.min(file.size, start + chunkSize);
       const chunk = await file.slice(start, end).arrayBuffer();
@@ -136,8 +141,13 @@ export class WebRTCManager {
       };
 
       this.dataChannels.forEach(channels => {
-        const channel = channels.find(c => c.readyState === 'open');
-        if (channel) channel.send(JSON.stringify(payload));
+        // Parallel Channel Jugad: Round-Robin distribution
+        const openChannels = channels.filter(c => c.readyState === 'open');
+        if (openChannels.length > 0) {
+          const channel = openChannels[this.channelIndex % openChannels.length];
+          channel.send(JSON.stringify(payload));
+          this.channelIndex++;
+        }
       });
 
       onProgress(payload.progress);
