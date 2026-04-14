@@ -13,25 +13,20 @@ export class WebRTCManager {
 
   constructor(
     private roomId: string, 
+    private ablyClient: any,
     private ablyChannel: any,
     private onMessage: (msg: any) => void,
     isPro: boolean = false
   ) {
     this.isPro = isPro;
-    
-    // MONETIZATION JUGAD: Speed Control
-    // FREE: 5ms delay per chunk (limits transfer to ~1-2MB/s)
-    // PRO: 0ms delay (Uncapped speed, up to 1Gbps+)
-    // Change this logic to check isPro status from your DB/Billing system later.
     this.throttleDelay = isPro ? 0 : 5; 
-    
     this.setupSignaling();
   }
 
   private setupSignaling() {
     this.ablyChannel.subscribe('signal', async (message: any) => {
       const { from, signal } = message.data;
-      if (from === this.ablyChannel.ably.clientId) return;
+      if (from === this.ablyClient.auth.clientId) return;
 
       let pc = this.peerConnections.get(from);
       if (!pc) pc = this.createPeerConnection(from, false);
@@ -40,7 +35,7 @@ export class WebRTCManager {
         await pc.setRemoteDescription(new RTCSessionDescription(signal));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        this.ablyChannel.publish('signal', { to: from, from: this.ablyChannel.ably.clientId, signal: answer });
+        this.ablyChannel.publish('signal', { to: from, from: this.ablyClient.auth.clientId, signal: answer });
       } else if (signal.type === 'answer') {
         await pc.setRemoteDescription(new RTCSessionDescription(signal));
       } else if (signal.candidate) {
@@ -49,10 +44,10 @@ export class WebRTCManager {
     });
 
     // Notify others that I joined
-    this.ablyChannel.publish('peer_joined', { socket_id: this.ablyChannel.ably.clientId });
+    this.ablyChannel.publish('peer_joined', { socket_id: this.ablyClient.auth.clientId });
     
     this.ablyChannel.subscribe('peer_joined', (msg: any) => {
-      if (msg.data.socket_id !== this.ablyChannel.ably.clientId) {
+      if (msg.data.socket_id !== this.ablyClient.auth.clientId) {
         this.createPeerConnection(msg.data.socket_id, true);
       }
     });
@@ -67,7 +62,7 @@ export class WebRTCManager {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        this.ablyChannel.publish('signal', { to: peerId, from: this.ablyChannel.ably.clientId, signal: { candidate: event.candidate } });
+        this.ablyChannel.publish('signal', { to: peerId, from: this.ablyClient.auth.clientId, signal: { candidate: event.candidate } });
       }
     };
 
@@ -80,7 +75,7 @@ export class WebRTCManager {
 
       pc.createOffer().then(async (offer) => {
         await pc.setLocalDescription(offer);
-        this.ablyChannel.publish('signal', { to: peerId, from: this.ablyChannel.ably.clientId, signal: offer });
+        this.ablyChannel.publish('signal', { to: peerId, from: this.ablyClient.auth.clientId, signal: offer });
       });
     } else {
       pc.ondatachannel = (event) => {
@@ -150,6 +145,13 @@ export class WebRTCManager {
         await new Promise(r => setTimeout(r, this.throttleDelay));
       }
     }
+  }
+
+  public sendData(data: any) {
+    this.dataChannels.forEach(channels => {
+      const channel = channels.find(c => c.readyState === 'open');
+      if (channel) channel.send(JSON.stringify(data));
+    });
   }
 
   public cleanup() {

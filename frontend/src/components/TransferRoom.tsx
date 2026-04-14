@@ -28,7 +28,7 @@ export default function TransferRoom() {
       const channel = getRoomChannel(client, roomId);
       
       // Init WebRTC
-      const manager = new WebRTCManager(roomId, channel, (data) => {
+      const manager = new WebRTCManager(roomId, client, channel, (data) => {
         setMessages((prev) => [...prev, { ...data, timestamp: Date.now(), received: true }]);
       }, false); // isPro = false for now
       
@@ -60,8 +60,7 @@ export default function TransferRoom() {
   const handleSendMessage = () => {
     if (!inputText.trim() || !rtcManager) return;
     const msg = { type: 'text', content: inputText };
-    rtcManager.sendFile(new File([], ""), (p) => {}); // Placeholder for sending via datachannel
-    // Note: Real text sending would use rtcManager.sendData which I'll ensure is in the lib
+    rtcManager.sendData(msg);
     setMessages((prev) => [...prev, { ...msg, timestamp: Date.now(), received: false }]);
     setInputText('');
   };
