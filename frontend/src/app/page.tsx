@@ -1,12 +1,35 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { 
+  Zap, 
+  Wifi, 
+  Globe, 
+  Cpu, 
+  ShieldCheck, 
+  MousePointer2, 
+  LayoutDashboard, 
+  History, 
+  HardDriveDownload, 
+  RefreshCcw,
+  PlusCircle,
+  Hash,
+  ArrowRight,
+  Notebook,
+  Clipboard,
+  Share2,
+  Shield,
+  Lock,
+  Crown,
+  ChevronRight,
+  Info,
+  Check,
+  X,
+  Trash2
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRoomStore } from '@/store/useRoomStore';
 import { hashPassword } from '@/lib/crypto';
-import TransferRoom from '@/components/TransferRoom';
-import { useRouter } from 'next/navigation';
-import { Shield, Zap, Globe, Lock, Crown, ChevronRight, Share2, Info, Check, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { db } from '@/lib/storage';
 
 export default function Home() {
   const router = useRouter();
@@ -79,8 +102,8 @@ export default function Home() {
     const passwordHash = password ? await hashPassword(password) : '';
     
     try {
-      const ably = await getAblyClient();
-      const adminId = ably.auth.clientId;
+      // Signaling will be re-implemented via CDN/Build-safe method
+      const adminId = 'admin-' + Math.random().toString(36).substring(7);
 
       const res = await fetch('/api/room/create', {
         method: 'POST',
@@ -104,7 +127,6 @@ export default function Home() {
       const ecosystem = creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb';
       
       if (data.success) {
-        // Signaling will be re-implemented via CDN/Build-safe method
         router.push(`/${ecosystem}/${data.roomId}`);
       } else {
         setError(data.message);
