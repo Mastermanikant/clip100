@@ -17,6 +17,8 @@ export default function Home() {
   const [showAd, setShowAd] = useState(false);
   const [adTimer, setAdTimer] = useState(1);
   const [availability, setAvailability] = useState<'IDLE' | 'CHECKING' | 'AVAILABLE' | 'TAKEN'>('IDLE');
+  const [creationMode, setCreationMode] = useState<'transfer' | 'notebook'>('transfer');
+  const [isPro, setIsPro] = useState(false);
 
   // URL Availability Check JUGAD
   useEffect(() => {
@@ -55,8 +57,13 @@ export default function Home() {
       setError('This URL is already taken. Please choose another.');
       return;
     }
-    setShowAd(true);
-    setAdTimer(1); 
+    // Pro users bypass the ad wall
+    if (isPro) {
+      executeCreateRoom();
+    } else {
+      setShowAd(true);
+      setAdTimer(1); 
+    }
   };
 
   const executeCreateRoom = async () => {
@@ -68,7 +75,13 @@ export default function Home() {
       const res = await fetch('/api/room/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vanityName, passwordHash, isPublic: !password, isPro: false })
+        body: JSON.stringify({ 
+          vanityName, 
+          passwordHash, 
+          isPublic: !password, 
+          isPro, 
+          initialMode: creationMode 
+        })
       });
       
       if (!res.ok) {
@@ -129,9 +142,9 @@ export default function Home() {
         <div className="flex flex-col items-center mb-12">
           <motion.div 
             whileHover={{ scale: 1.05 }}
-            className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl mb-6 shadow-2xl flex items-center justify-center"
+            className="w-20 h-20 bg-black border border-white/10 rounded-3xl mb-6 shadow-2xl flex items-center justify-center overflow-hidden"
           >
-            <Zap className="text-white w-10 h-10 fill-white" />
+            <img src="/logo.png" alt="Frank Drop Logo" className="w-full h-full object-cover" />
           </motion.div>
           <h1 className="text-5xl font-black tracking-tighter mb-2 italic">FRANK DROP</h1>
           <p className="text-gray-500 font-medium">Powering <span className="text-blue-400">frank-drop.vercel.app</span> ecosystem</p>
@@ -141,8 +154,18 @@ export default function Home() {
           {!showAd ? (
             <div className="space-y-8">
               <div className="grid grid-cols-2 gap-4 p-1 bg-black/50 rounded-2xl border border-white/5">
-                <button className="py-3 px-6 rounded-xl bg-white/10 text-sm font-bold">Transfer</button>
-                <button className="py-3 px-6 rounded-xl text-sm font-medium text-gray-500 hover:text-white transition-colors">Notebook</button>
+                <button 
+                  onClick={() => setCreationMode('transfer')}
+                  className={`py-3 px-6 rounded-xl text-sm font-bold transition-all ${creationMode === 'transfer' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
+                >
+                  Transfer
+                </button>
+                <button 
+                  onClick={() => setCreationMode('notebook')}
+                  className={`py-3 px-6 rounded-xl text-sm font-bold transition-all ${creationMode === 'notebook' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
+                >
+                  Notebook
+                </button>
               </div>
 
               <div className="space-y-4">
