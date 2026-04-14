@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { useRoomStore } from '@/store/useRoomStore';
 import { hashPassword } from '@/lib/crypto';
 import TransferRoom from '@/components/TransferRoom';
-import { getAblyClient } from '@/lib/ably';
 import { useRouter } from 'next/navigation';
 import { Shield, Zap, Globe, Lock, Crown, ChevronRight, Share2, Info, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -105,6 +104,7 @@ export default function Home() {
       const ecosystem = creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb';
       
       if (data.success) {
+        // Signaling will be re-implemented via CDN/Build-safe method
         router.push(`/${ecosystem}/${data.roomId}`);
       } else {
         setError(data.message);

@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRoomStore } from '@/store/useRoomStore';
 import { WebRTCManager } from '@/lib/webrtc';
-import { getAblyClient, getRoomChannel } from '@/lib/ably';
 import { QRCodeSVG } from 'qrcode.react';
 import { Send, File, X, Check, Copy, Share2, ArrowLeft, Zap, Crown, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,10 +27,8 @@ export default function RoomModule() {
     if (!isMounted || !roomId) return;
     
     const init = async () => {
-      const client = await getAblyClient();
-      const channel = getRoomChannel(client, roomId);
-      
-      const manager = new WebRTCManager(roomId, client, channel, async (data: any) => {
+      // Signaling will be re-implemented via Build-Safe method
+      const manager = new WebRTCManager(roomId, null as any, null as any, async (data: any) => {
         if (data.type === 'progress') {
           setMessages((prev) => prev.map(m => 
             (m.type === 'file' && m.fileName && data.fileId.includes(m.fileName)) ? { ...m, progress: data.progress } : m
