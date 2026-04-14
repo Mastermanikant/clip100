@@ -1,11 +1,13 @@
 import { kv } from '@vercel/kv';
 import { NextResponse } from 'next/server';
-import { nanoid } from 'nanoid';
 
 export async function POST(req: Request) {
   try {
     const { vanityName, passwordHash, isPublic, isPro } = await req.json();
-    const roomId = vanityName || nanoid(10);
+    
+    // Native ID generator to bypass ESM conflicts
+    const generateId = () => Math.random().toString(36).substring(2, 12);
+    const roomId = vanityName || generateId();
 
     // Store room metadata with 30-day TTL (2592000 seconds)
     const roomData = {

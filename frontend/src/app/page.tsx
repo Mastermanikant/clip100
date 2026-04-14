@@ -8,14 +8,14 @@ import { Shield, Zap, Globe, Lock, Crown, ChevronRight, Share2, Info } from 'luc
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Home() {
-  const { roomId, setRoom, isLocalOnly, toggleLocalOnly } = useRoomStore();
+  const { roomId, setRoom, isLocalOnly } = useRoomStore();
   const [vanityName, setVanityName] = useState('');
   const [inputCode, setInputCode] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showAd, setShowAd] = useState(false);
-  const [adTimer, setAdTimer] = useState(30);
+  const [adTimer, setAdTimer] = useState(1);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -104,7 +104,7 @@ export default function Home() {
             <Zap className="text-white w-10 h-10 fill-white" />
           </motion.div>
           <h1 className="text-5xl font-black tracking-tighter mb-2 italic">FRANK DROP</h1>
-          <p className="text-gray-500 font-medium">Powering <span className="text-blue-400">digital.frankbase.com</span> ecosystem</p>
+          <p className="text-gray-500 font-medium">Powering <span className="text-blue-400">frank-drop.vercel.app</span> ecosystem</p>
         </div>
 
         <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)]">
@@ -117,13 +117,13 @@ export default function Home() {
 
               <div className="space-y-4">
                 <div className="relative">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-sm">drop.frankbase.com/d/</span>
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-xs">frank-drop.vercel.app/d/</span>
                   <input
                     type="text"
                     placeholder="custom-name"
                     value={vanityName}
                     onChange={(e) => setVanityName(e.target.value)}
-                    className="w-full bg-black/60 border border-white/5 rounded-2xl pl-[10.5rem] pr-5 py-5 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-800"
+                    className="w-full bg-black/60 border border-white/5 rounded-2xl pl-[12rem] pr-5 py-5 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-800"
                   />
                 </div>
 

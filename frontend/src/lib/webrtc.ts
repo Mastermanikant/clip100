@@ -2,7 +2,7 @@ import { db } from './storage';
 
 export interface SignalData {
   from: string;
-  signal: any;
+  signal: RTCSessionDescriptionInit | RTCIceCandidateInit | { candidate: RTCIceCandidate };
 }
 
 export class WebRTCManager {

@@ -5,14 +5,25 @@ import { useRoomStore } from '@/store/useRoomStore';
 import { WebRTCManager } from '@/lib/webrtc';
 import { getAblyClient, getRoomChannel } from '@/lib/ably';
 import { QRCodeSVG } from 'qrcode.react';
-import { Send, File, X, Check, Copy, Share2, ArrowLeft, Shield, Zap, Crown, MessageSquare, Notebook as MemoIcon } from 'lucide-react';
+import { Send, File, X, Check, Copy, Share2, ArrowLeft, Shield, Zap, Crown, MessageSquare, FileText as MemoIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TransferItem from './TransferItem';
 
+interface TransferMessage {
+  type: 'text' | 'file';
+  content?: string;
+  fileName?: string;
+  fileSize?: string;
+  progress?: number;
+  status?: 'Sending' | 'Receiving' | 'Completed';
+  timestamp?: number;
+  received?: boolean;
+}
+
 export default function TransferRoom() {
-  const { roomId, isLocalOnly, resetRoom } = useRoomStore();
+  const { roomId, resetRoom } = useRoomStore();
   const [rtcManager, setRtcManager] = useState<WebRTCManager | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<TransferMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [notebookText, setNotebookText] = useState('');
   const [activeTab, setActiveTab] = useState<'chat' | 'notebook'>('chat');
@@ -41,7 +52,7 @@ export default function TransferRoom() {
         const channel = getRoomChannel(client, roomId);
         
         // Init WebRTC
-        const manager = new WebRTCManager(roomId, client, channel, (data) => {
+        const manager = new WebRTCManager(roomId, client, channel, (data: TransferMessage) => {
           setMessages((prev) => [...prev, { ...data, timestamp: Date.now(), received: true }]);
         }, false);
         
@@ -57,8 +68,9 @@ export default function TransferRoom() {
           manager.cleanup();
           channel.unsubscribe();
         };
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errorMessage);
         setIsJoining(false);
       }
     };
