@@ -97,20 +97,13 @@ export default function Home() {
       });
       
       if (!res.ok) {
-    try {
-      const ecosystem = creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb';
-      const res = await fetch('/api/room/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vanityName, passwordHash, isPublic: isPublicRoom, isPro: isProMode, initialMode: creationMode, ecosystem })
-      });
-
-      if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.message || 'Server connection error');
       }
 
       const data = await res.json();
+      const ecosystem = creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb';
+      
       if (data.success) {
         router.push(`/${ecosystem}/${data.roomId}`);
       } else {
