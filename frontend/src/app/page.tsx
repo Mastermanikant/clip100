@@ -16,6 +16,28 @@ export default function Home() {
   const [error, setError] = useState('');
   const [showAd, setShowAd] = useState(false);
   const [adTimer, setAdTimer] = useState(1);
+  const [availability, setAvailability] = useState<'IDLE' | 'CHECKING' | 'AVAILABLE' | 'TAKEN'>('IDLE');
+
+  // URL Availability Check JUGAD
+  useEffect(() => {
+    if (!vanityName.trim()) {
+      setAvailability('IDLE');
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setAvailability('CHECKING');
+      try {
+        const res = await fetch(`/api/room/check?roomId=${vanityName}`);
+        const data = await res.json();
+        setAvailability(data.available ? 'AVAILABLE' : 'TAKEN');
+      } catch (err) {
+        setAvailability('IDLE');
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+  }, [vanityName]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -29,8 +51,10 @@ export default function Home() {
   }, [showAd, adTimer]);
 
   const handleCreateRoom = () => {
-    // MONETIZATION JUGAD: 
-    // Set this to 1s for quick testing, but can be 30s+ for production.
+    if (availability === 'TAKEN' && vanityName) {
+      setError('This URL is already taken. Please choose another.');
+      return;
+    }
     setShowAd(true);
     setAdTimer(1); 
   };
@@ -46,14 +70,20 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vanityName, passwordHash, isPublic: !password, isPro: false })
       });
+      
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Server connection error');
+      }
+
       const data = await res.json();
       if (data.success) {
         setRoom(data.roomId, data.roomId, isLocalOnly);
       } else {
         setError(data.message);
       }
-    } catch (err) {
-      setError('Connection failed');
+    } catch (err: any) {
+      setError(err.message || 'Connection failed. Check KV database.');
     } finally {
       setLoading(false);
     }
@@ -117,15 +147,26 @@ export default function Home() {
 
               <div className="space-y-4">
                 <div className="relative">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-xs">frank-drop.vercel.app/d/</span>
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-[10px]">frank-drop.vercel.app/d/</span>
                   <input
                     type="text"
                     placeholder="custom-name"
                     value={vanityName}
                     onChange={(e) => setVanityName(e.target.value)}
-                    className="w-full bg-black/60 border border-white/5 rounded-2xl pl-[12rem] pr-5 py-5 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-800"
+                    className={`w-full bg-black/60 border rounded-2xl pl-44 pr-12 py-5 text-lg font-bold focus:outline-none focus:ring-2 transition-all placeholder:text-gray-800 ${
+                      availability === 'AVAILABLE' ? 'border-green-500/50 focus:ring-green-500/30' : 
+                      availability === 'TAKEN' ? 'border-red-500/50 focus:ring-red-500/30' : 
+                      'border-white/5 focus:ring-blue-500/50'
+                    }`}
                   />
+                  <div className="absolute right-5 top-1/2 -translate-y-1/2">
+                    {availability === 'CHECKING' && <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />}
+                    {availability === 'AVAILABLE' && <Check className="w-5 h-5 text-green-500" />}
+                    {availability === 'TAKEN' && <X className="w-5 h-5 text-red-500" />}
+                  </div>
                 </div>
+
+                {error && <p className="text-red-400 text-xs font-bold text-center animate-bounce">⚠️ {error}</p>}
 
                 <div className="relative">
                   <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
