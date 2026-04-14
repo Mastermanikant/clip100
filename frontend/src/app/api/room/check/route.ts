@@ -1,10 +1,6 @@
-import { kv } from '@vercel/kv';
+import redis from '@/lib/redis';
 import { NextResponse } from 'next/server';
 
-/**
- * GET /api/room/check?roomId=...
- * Checks if a roomId is currently taken in the KV store.
- */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -14,8 +10,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, message: 'Room ID required' }, { status: 400 });
     }
 
-    // Check if the key exists in KV
-    const exists = await kv.exists(`room:${roomId}`);
+    const exists = await redis.exists(`room:${roomId}`);
 
     return NextResponse.json({ 
       success: true, 

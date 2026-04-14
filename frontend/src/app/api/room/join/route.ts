@@ -1,14 +1,16 @@
-import { kv } from '@vercel/kv';
+import redis from '@/lib/redis';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
     const { roomId, passwordHash } = await req.json();
-    const room: any = await kv.get(`room:${roomId}`);
+    const roomRaw = await redis.get(`room:${roomId}`);
 
-    if (!room) {
+    if (!roomRaw) {
       return NextResponse.json({ success: false, message: 'Room not found' }, { status: 404 });
     }
+
+    const room = JSON.parse(roomRaw);
 
     if (!room.isPublic && room.passwordHash !== passwordHash) {
       return NextResponse.json({ success: false, message: 'Invalid password' }, { status: 401 });

@@ -1,20 +1,22 @@
-import { kv } from '@vercel/kv';
+import redis from '@/lib/redis';
 import { NextResponse } from 'next/server';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const roomId = searchParams.get('roomId');
-  const room: any = await kv.get(`room:${roomId}`);
+  const roomRaw = await redis.get(`room:${roomId}`);
+  const room = roomRaw ? JSON.parse(roomRaw) : null;
   return NextResponse.json({ notebook: room?.notebook || '' });
 }
 
 export async function PATCH(req: Request) {
   const { roomId, notebookText } = await req.json();
-  const room: any = await kv.get(`room:${roomId}`);
+  const roomRaw = await redis.get(`room:${roomId}`);
   
-  if (room) {
+  if (roomRaw) {
+    const room = JSON.parse(roomRaw);
     room.notebook = notebookText;
-    await kv.set(`room:${roomId}`, room, { ex: 2592000 });
+    await redis.set(`room:${roomId}`, JSON.stringify(room), 'EX', 2592000);
   }
   
   return NextResponse.json({ success: true });
