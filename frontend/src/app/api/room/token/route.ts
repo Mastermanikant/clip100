@@ -9,8 +9,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Invalid ABLY_API_KEY' }, { status: 500 });
   }
 
-  // JUGAD: Manual Token Signing to bypass Ably SDK build crashes
-  // Ably API Key format is id:secret
   const [keyName, keySecret] = apiKey.split(':');
 
   try {
@@ -18,10 +16,9 @@ export async function GET() {
     const capability = JSON.stringify({ '*': ['*'] });
     const timestamp = Date.now();
     const nonce = Math.random().toString(36).substring(7);
-    const ttl = 3600000; // 1 hour
+    const ttl = 3600000; 
 
-    // Sign the request manually using HMAC-SHA256
-    // Format: [clientId, ttl, capability, nonce, timestamp]
+    // Manual Signing JUGAD (Ultimate stability)
     const signData = [clientId, ttl, capability, nonce, timestamp].join('\n') + '\n';
     const mac = crypto.createHmac('sha256', keySecret).update(signData).digest('base64');
 
@@ -37,7 +34,6 @@ export async function GET() {
     
     return NextResponse.json(tokenRequest);
   } catch (error: any) {
-    console.error('Manual Token generation failed:', error);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Token Failed' }, { status: 500 });
   }
 }

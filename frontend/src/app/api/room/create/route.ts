@@ -1,33 +1,35 @@
 import redis from '@/lib/redis';
 import { NextResponse } from 'next/server';
+import { nanoid } from 'nanoid';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const { vanityName, passwordHash, isPublic, isPro, initialMode, adminId, ecosystem = 'room' } = await req.json();
+    const { vanityName, passwordHash, isPublic, adminId } = await req.json();
     
-    // Native ID generator
-    const generateId = () => Math.random().toString(36).substring(2, 12);
-    const roomId = vanityName || generateId();
+    // JUGAD: Use vanityName if available, else nanoid
+    const roomId = vanityName ? vanityName.toLowerCase().replace(/[^a-z0-9-]/g, '') : nanoid(10);
+    
+    // Check if exists
+    const exists = await redis.exists(`room:${roomId}`);
+    if (exists && vanityName) {
+      return NextResponse.json({ success: false, message: 'ID_TAKEN' }, { status: 400 });
+    }
 
     const roomData = {
       roomId,
-      passwordHash,
-      isPublic,
-      isPro,
-      initialMode,
+      passwordHash: passwordHash || '',
+      isPublic: !!isPublic,
       adminId,
       createdAt: Date.now(),
-      notebook: '',
-      ecosystem // Store the type
+      expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000)
     };
 
-    // Use specific prefix for logical separation
-    await redis.set(`${ecosystem}:${roomId}`, JSON.stringify(roomData), 'EX', 2592000);
-
-    return NextResponse.json({ success: true, roomId, ecosystem });
-  } catch (error) {
-    return NextResponse.json({ success: false, message: 'Failed to create room' }, { status: 500 });
+    await redis.set(`room:${roomId}`, JSON.stringify(roomData), 'EX', 30 * 24 * 60 * 60);
+    
+    return NextResponse.json({ success: true, roomId });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, message: 'Server Error' }, { status: 500 });
   }
 }
