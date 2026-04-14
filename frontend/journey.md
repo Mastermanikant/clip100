@@ -68,11 +68,21 @@ A chronicle of building a high-performance, peer-to-peer ecosystem with zero ser
 
 ---
 
+## 🏗️ Phase 8: The Build Hammer (The Final Boss)
+**Goal**: Resolve silent production build crashes that occurred *only* on Vercel's edge environment.
+- **Challenge**: `TypeError: r is not a function`. The Ably signaling SDK's promise logic was crashing during Next.js's "Static Page Generation" phase. This prevents the new UI from ever being deployed.
+- **Solution (The Hammer)**:
+  - **Build Guard**: Implemented an early exit in the API if `NEXT_PHASE === 'phase-production-build'`. 
+  - **Callback Stabilization**: Reverted signaling logic from modern Promises to the **Legacy Callback Pattern**. 
+- **Result**: Vercel deployment stabilized. The "Build Hammer" ensures signaling code never executes in a restricted build-time environment.
+
+---
+
 ## 🧠 Lessons Learned
 1. **Action > Planning**: In testing, "Indian Jugaad" (like IP-grouping) often beats complex protocols.
-2. **Standardize Early**: Modular code is harder to write first, but 10x easier to maintain.
+2. **Build-Time vs Runtime**: Some SDKs (like Ably/Redis) are NOT build-safe. Always gate your APIs with `force-dynamic` and phase-checks.
 3. **P2P is King**: Offloading file storage to the user's browser (IndexedDB) kept our server costs at **$0.00**.
 
 ---
-**Last Updated**: 14-04-2026 | 14:15
-**Status**: Stable / High-Performance
+**Last Updated**: 14-04-2026 | 14:55
+**Status**: 🛡️ Battle-Hardened / Production-Ready
