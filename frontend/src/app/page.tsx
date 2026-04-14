@@ -32,9 +32,15 @@ export default function Home() {
       try {
         const res = await fetch(`/api/room/check?roomId=${vanityName}`);
         const data = await res.json();
-        setAvailability(data.available ? 'AVAILABLE' : 'TAKEN');
+        if (data.success) {
+          setAvailability(data.available ? 'AVAILABLE' : 'TAKEN');
+        } else {
+          setAvailability('IDLE');
+          setError('Database Error: Link your Vercel KV');
+        }
       } catch (err) {
         setAvailability('IDLE');
+        setError('Connection failed. Link your KV Storage.');
       }
     }, 500); // 500ms debounce
 
