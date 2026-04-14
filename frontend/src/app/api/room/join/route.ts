@@ -1,6 +1,8 @@
 import redis from '@/lib/redis';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   try {
     const { roomId, passwordHash, ecosystem = 'room' } = await req.json();
