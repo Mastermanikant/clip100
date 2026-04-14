@@ -18,23 +18,36 @@ export async function GET(req: Request) {
   }
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function DELETE(req: Request) {
   try {
     const { id, ecosystem, action } = await req.json();
     
     if (action === 'purge_all') {
-      const ecosystems = ['room', 'nb', 'cb', 'nearby'];
-      for (const eco of ecosystems) {
-         const keys = await redis.keys(`${eco}:*`);
-         if (keys.length > 0) await redis.del(...keys);
+      // THE "NUKER" LOGIC: Find all project-related keys
+      const namespaces = ['room', 'nb', 'cb', 'nearby', 'visit', 'stats'];
+      let deletedCount = 0;
+
+      for (const ns of namespaces) {
+         const keys = await redis.keys(`${ns}:*`);
+         if (keys.length > 0) {
+            await redis.del(...keys);
+            deletedCount += keys.length;
+         }
       }
-      return NextResponse.json({ success: true, message: 'Global Wipe Complete' });
+      
+      return NextResponse.json({ 
+        success: true, 
+        message: `Global Wipe Complete. Deleted ${deletedCount} entries.` 
+      });
     }
 
     if (!id || !ecosystem) throw new Error('Params missing');
     await redis.del(`${ecosystem}:${id}`);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Admin Management Error:', error);
     return NextResponse.json({ success: false, message: 'Operation failed' }, { status: 500 });
   }
 }
