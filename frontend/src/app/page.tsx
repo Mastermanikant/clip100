@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRoomStore } from '@/store/useRoomStore';
 import { hashPassword } from '@/lib/crypto';
 import TransferRoom from '@/components/TransferRoom';
-import { Shield, Zap, Globe, Lock, Crown, ChevronRight, Share2, Info } from 'lucide-react';
+import { Shield, Zap, Globe, Lock, Crown, ChevronRight, Share2, Info, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Home() {
