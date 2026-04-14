@@ -97,14 +97,22 @@ export default function Home() {
       });
       
       if (!res.ok) {
+    try {
+      const ecosystem = creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb';
+      const res = await fetch('/api/room/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vanityName, passwordHash, isPublic: isPublicRoom, isPro: isProMode, initialMode: creationMode, ecosystem })
+      });
+
+      if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.message || 'Server connection error');
       }
 
       const data = await res.json();
       if (data.success) {
-        const prefix = creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb';
-        router.push(`/${prefix}/${data.roomId}`);
+        router.push(`/${ecosystem}/${data.roomId}`);
       } else {
         setError(data.message);
       }
@@ -119,18 +127,19 @@ export default function Home() {
     setLoading(true);
     setError('');
     const passwordHash = password ? await hashPassword(password) : '';
+    const ecosystem = creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb';
 
     try {
       const res = await fetch('/api/room/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: inputCode, passwordHash })
+        body: JSON.stringify({ roomId: inputCode, passwordHash, ecosystem })
       });
       const data = await res.json();
       if (data.success) {
-        router.push(`/room/${inputCode}`);
+        router.push(`/${ecosystem}/${inputCode}`);
       } else {
-        setError(data.message || 'Room not found');
+        setError(data.message || 'Item not found in this ecosystem');
       }
     } catch (err) {
       setError('Join failed');

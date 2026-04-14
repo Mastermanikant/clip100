@@ -70,8 +70,10 @@ export class WebRTCManager {
 
     if (isInitiator) {
       const channels = [
-        pc.createDataChannel('data-0', { ordered: true }),
-        pc.createDataChannel('data-1', { ordered: true }),
+        pc.createDataChannel('turbo-0', { ordered: true }),
+        pc.createDataChannel('turbo-1', { ordered: true }),
+        pc.createDataChannel('turbo-2', { ordered: true }),
+        pc.createDataChannel('turbo-3', { ordered: true }),
       ];
       this.setupDataChannels(peerId, channels);
 
@@ -98,9 +100,9 @@ export class WebRTCManager {
     
     channels.forEach(channel => {
       channel.binaryType = 'arraybuffer';
+      channel.bufferedAmountLowThreshold = 65536; // 64KB threshold for turbo
       channel.onmessage = async (event) => {
         if (event.data instanceof ArrayBuffer) {
-           // Binary Chunk JUGAD: We handle this based on current active transfer
            const active = (this as any).activeTransfer;
            if (active) {
              await db.saveChunk(active.fileId, active.currentIndex, event.data);

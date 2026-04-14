@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { useRoomStore } from '@/store/useRoomStore';
-import TransferRoom from '@/components/TransferRoom';
+import RoomModule from '@/components/ecosystem/RoomModule';
 import { useParams } from 'next/navigation';
 
 export default function RoomPage() {
@@ -15,7 +15,6 @@ export default function RoomPage() {
     }
   }, [params.id, setRoom]);
 
-  if (!roomId) return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-gray-500 font-mono">Loading Ecosystem...</div>;
-
-  return <TransferRoom initialTab="chat" />;
+  // JUGAD: Use NoSSR rendering inside the module
+  return <RoomModule />;
 }

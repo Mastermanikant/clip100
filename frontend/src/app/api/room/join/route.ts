@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { roomId, passwordHash } = await req.json();
-    const roomRaw = await redis.get(`room:${roomId}`);
+    const { roomId, passwordHash, ecosystem = 'room' } = await req.json();
+    const roomRaw = await redis.get(`${ecosystem}:${roomId}`);
 
     if (!roomRaw) {
       return NextResponse.json({ success: false, message: 'Room not found' }, { status: 404 });
