@@ -20,18 +20,23 @@ interface TransferMessage {
   received?: boolean;
 }
 
-export default function TransferRoom() {
+interface TransferRoomProps {
+  initialTab?: 'chat' | 'notebook' | 'clipboard';
+}
+
+export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps) {
   const { roomId, resetRoom } = useRoomStore();
   const [rtcManager, setRtcManager] = useState<WebRTCManager | null>(null);
   const [messages, setMessages] = useState<TransferMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [notebookText, setNotebookText] = useState('');
-  const [activeTab, setActiveTab] = useState<'chat' | 'notebook'>('chat');
-  const [copied, setCopied] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const notebookTimerRef = useRef<any>(null);
-  const [isJoining, setIsJoining] = useState(true);
+  const [activeTab, setActiveTab ] = useState<'chat' | 'notebook' | 'clipboard'>(initialTab);
+  const [nickname, setNickname ] = useState<string>('');
+  const [isChoosingName, setIsChoosingName] = useState(true);
+  const [adminId, setAdminId] = useState<string | null>(null);
+  const [myId, setMyId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [isJoining, setIsJoining] = useState(true);
 
   useEffect(() => {
     const init = async () => {
@@ -47,25 +52,24 @@ export default function TransferRoom() {
         
         if (!joinRes.ok) throw new Error('Could not join room');
         
-        // Init Ably
-        const client = await getAblyClient();
-        const channel = getRoomChannel(client, roomId);
-        
-        // Init WebRTC
-        const manager = new WebRTCManager(roomId, client, channel, (data: TransferMessage) => {
-          setMessages((prev) => [...prev, { ...data, timestamp: Date.now(), received: true }]);
-        }, false);
-        
         setRtcManager(manager);
 
         // Fetch Room Data
-        const res = await fetch(`/api/room/notebook?roomId=${roomId}`);
+        const res = await fetch(`/api/room/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId, passwordHash: '' })
+        });
         const data = await res.json();
-        setNotebookText(data.notebook);
         
-        // Respect creation mode
-        if (data.initialMode === 'notebook') {
-          setActiveTab('notebook');
+        if (data.success) {
+          setNotebookText(data.room.notebook || '');
+          setAdminId(data.room.adminId || null);
+          setMyId(client.auth.clientId);
+          
+          if (data.room.initialMode) {
+            setActiveTab(data.room.initialMode);
+          }
         }
 
         setIsJoining(false);
@@ -144,15 +148,34 @@ export default function TransferRoom() {
     );
   }
 
-  if (error) {
+  if (isChoosingName) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-        <div className="max-w-md w-full bg-white/5 border border-red-500/20 p-8 rounded-[2rem] text-center space-y-4">
-          <Shield className="w-12 h-12 text-red-500 mx-auto" />
-          <h2 className="text-xl font-bold">Access Denied</h2>
-          <p className="text-sm text-gray-500">{error}</p>
-          <button onClick={resetRoom} className="px-6 py-2 bg-white/10 rounded-xl text-sm font-bold">Try Another Room</button>
-        </div>
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-sm w-full bg-white/[0.03] border border-white/10 p-10 rounded-[2.5rem] backdrop-blur-3xl text-center space-y-6"
+        >
+          <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Crown className="w-8 h-8 text-blue-500" />
+          </div>
+          <h2 className="text-2xl font-bold">Who goes there?</h2>
+          <p className="text-gray-500 text-sm italic">"Indian Jugaad" identity: Any name works.</p>
+          <input 
+            type="text" 
+            placeholder="Your Nickname"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && nickname.trim() && setIsChoosingName(false)}
+            className="w-full bg-black/60 border border-white/10 rounded-2xl px-6 py-4 text-center focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          />
+          <button 
+            onClick={() => nickname.trim() && setIsChoosingName(false)}
+            className="w-full bg-white text-black font-bold py-4 rounded-2xl"
+          >
+            Enter Room
+          </button>
+        </motion.div>
       </div>
     );
   }
@@ -165,8 +188,12 @@ export default function TransferRoom() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-[0.2em] font-bold">Room ID</div>
-            <div className="text-xl font-mono font-bold">{roomId}</div>
+            <div className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-[0.2em] font-bold">
+              Room ID {myId === adminId && <Crown className="w-3 h-3 text-amber-500 fill-amber-500" />}
+            </div>
+            <div className="text-xl font-mono font-bold flex items-center gap-2">
+              {roomId}
+            </div>
           </div>
         </div>
 
@@ -199,7 +226,13 @@ export default function TransferRoom() {
               onClick={() => setActiveTab('notebook')}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold transition-all ${activeTab === 'notebook' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
             >
-              <MemoIcon className="w-4 h-4" /> The Notebook
+              <MemoIcon className="w-4 h-4" /> Notebook
+            </button>
+            <button 
+              onClick={() => setActiveTab('clipboard')}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold transition-all ${activeTab === 'clipboard' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <Copy className="w-4 h-4" /> Clipboard
             </button>
           </div>
 
@@ -222,8 +255,14 @@ export default function TransferRoom() {
                     messages.map((msg, i) => (
                       <div key={i} className={`flex ${msg.received ? 'justify-start' : 'justify-end'}`}>
                         {msg.type === 'text' ? (
-                          <div className={`max-w-[80%] p-4 rounded-[1.5rem] ${msg.received ? 'bg-white/5 border border-white/5' : 'bg-blue-600 shadow-lg shadow-blue-600/20'}`}>
+                          <div className={`group relative max-w-[80%] p-4 rounded-[1.5rem] ${msg.received ? 'bg-white/5 border border-white/5' : 'bg-blue-600 shadow-lg shadow-blue-600/20'}`}>
                             <p className="text-sm leading-relaxed">{msg.content}</p>
+                            <button 
+                              onClick={() => { navigator.clipboard.writeText(msg.content || ''); alert('Copied to Clipboard!'); }}
+                              className="absolute -right-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all"
+                            >
+                              <Copy className="w-4 h-4 text-gray-500" />
+                            </button>
                           </div>
                         ) : (
                           <div className="w-full max-w-[320px]">
@@ -241,24 +280,23 @@ export default function TransferRoom() {
                   )}
                 </motion.div>
               ) : (
-                <motion.div 
-                  key="notebook"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="h-full flex flex-col"
-                >
-                  <textarea 
-                    placeholder="Type anything here... it stays in the room for 30 days."
-                    value={notebookText}
-                    onChange={(e) => handleUpdateNotebook(e.target.value)}
-                    className="w-full h-full min-h-[50vh] bg-transparent text-gray-300 p-4 border border-white/5 rounded-2xl focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-none font-light leading-relaxed scrollbar-hide"
-                  />
-                  <div className="mt-4 flex items-center justify-between text-[10px] text-gray-600 px-2 uppercase tracking-widest font-bold">
-                    <span>Cloud Synced</span>
-                    <span>Last Edit: Just now</span>
+                  <div className="h-full flex flex-col space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500">Global Memo</h3>
+                      <button 
+                        onClick={() => handleUpdateNotebook(notebookText)}
+                        className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/20 flex items-center gap-2"
+                      >
+                        <Check className="w-3 h-3" /> Save to Cloud
+                      </button>
+                    </div>
+                    <textarea 
+                      placeholder="Type anything here... it stays in the room for 30 days."
+                      value={notebookText}
+                      onChange={(e) => setNotebookText(e.target.value)}
+                      className="w-full h-full min-h-[50vh] bg-transparent text-gray-300 p-6 border border-white/5 rounded-[2rem] focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-none font-light leading-relaxed scrollbar-hide bg-white/[0.02]"
+                    />
                   </div>
-                </motion.div>
               )}
             </AnimatePresence>
           </div>

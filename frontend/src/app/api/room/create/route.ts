@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { vanityName, passwordHash, isPublic, isPro, initialMode } = await req.json();
+    const { vanityName, passwordHash, isPublic, isPro, initialMode, adminId } = await req.json();
     
     // Native ID generator to bypass ESM conflicts
     const generateId = () => Math.random().toString(36).substring(2, 12);
@@ -16,6 +16,7 @@ export async function POST(req: Request) {
       isPublic,
       isPro,
       initialMode,
+      adminId, // Capture the creator ID
       createdAt: Date.now(),
       notebook: ''
     };

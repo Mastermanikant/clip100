@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRoomStore } from '@/store/useRoomStore';
 import { hashPassword } from '@/lib/crypto';
 import TransferRoom from '@/components/TransferRoom';
+import { getAblyClient } from '@/lib/ably';
 import { Shield, Zap, Globe, Lock, Crown, ChevronRight, Share2, Info, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -19,6 +20,11 @@ export default function Home() {
   const [availability, setAvailability] = useState<'IDLE' | 'CHECKING' | 'AVAILABLE' | 'TAKEN'>('IDLE');
   const [creationMode, setCreationMode] = useState<'transfer' | 'notebook'>('transfer');
   const [isPro, setIsPro] = useState(false);
+  
+  useEffect(() => {
+    // Record Visit (Indian Jugaad style stats)
+    fetch('/api/admin/visit', { method: 'POST' }).catch(() => {});
+  }, []);
 
   // URL Availability Check JUGAD
   useEffect(() => {
@@ -73,6 +79,9 @@ export default function Home() {
     const passwordHash = password ? await hashPassword(password) : '';
     
     try {
+      const ably = await getAblyClient();
+      const adminId = ably.auth.clientId;
+
       const res = await fetch('/api/room/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,7 +90,8 @@ export default function Home() {
           passwordHash, 
           isPublic: !password, 
           isPro, 
-          initialMode: creationMode 
+          initialMode: creationMode,
+          adminId // Pass the creator's ID
         })
       });
       
