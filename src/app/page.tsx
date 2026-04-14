@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Zap, Copy, Check, Wifi, WifiOff } from 'lucide-react';
