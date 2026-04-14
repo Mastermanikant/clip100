@@ -94,7 +94,9 @@ export class WebRTCManager {
       channel.onmessage = async (event) => {
         const data = JSON.parse(event.data);
         if (data.type === 'chunk') {
-          await db.saveChunk(data.fileId, data.chunkIndex, data.payload);
+          // Convert back from JSON array to ArrayBuffer
+          const buffer = new Uint8Array(data.payload).buffer;
+          await db.saveChunk(data.fileId, data.chunkIndex, buffer);
           this.onMessage({ type: 'progress', fileId: data.fileId, progress: data.progress });
         } else if (data.type === 'resume_request') {
           // Handle resume logic here
