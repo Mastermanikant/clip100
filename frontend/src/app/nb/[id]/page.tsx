@@ -1,8 +1,6 @@
-'use client';
+import dynamic from 'next/dynamic';
 
-import React, { useEffect } from 'react';
-import { useRoomStore } from '@/store/useRoomStore';
-import NotebookModule from '@/components/ecosystem/NotebookModule';
+const NotebookModule = dynamic(() => import('@/components/ecosystem/NotebookModule'), { ssr: false });
 import { useParams } from 'next/navigation';
 
 export default function NotebookPage() {
@@ -15,6 +13,5 @@ export default function NotebookPage() {
     }
   }, [params.id, setRoom]);
 
-  // JUGAD: Use NoSSR rendering inside the module
   return <NotebookModule />;
 }

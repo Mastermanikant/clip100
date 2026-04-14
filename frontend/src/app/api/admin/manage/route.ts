@@ -20,12 +20,21 @@ export async function GET(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const { id, ecosystem } = await req.json();
-    if (!id || !ecosystem) throw new Error('Params missing');
+    const { id, ecosystem, action } = await req.json();
     
+    if (action === 'purge_all') {
+      const ecosystems = ['room', 'nb', 'cb', 'nearby'];
+      for (const eco of ecosystems) {
+         const keys = await redis.keys(`${eco}:*`);
+         if (keys.length > 0) await redis.del(...keys);
+      }
+      return NextResponse.json({ success: true, message: 'Global Wipe Complete' });
+    }
+
+    if (!id || !ecosystem) throw new Error('Params missing');
     await redis.del(`${ecosystem}:${id}`);
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ success: false, message: 'Delete failed' }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Operation failed' }, { status: 500 });
   }
 }

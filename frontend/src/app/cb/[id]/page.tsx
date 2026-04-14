@@ -1,8 +1,6 @@
-'use client';
+import dynamic from 'next/dynamic';
 
-import React, { useEffect } from 'react';
-import { useRoomStore } from '@/store/useRoomStore';
-import ClipboardModule from '@/components/ecosystem/ClipboardModule';
+const ClipboardModule = dynamic(() => import('@/components/ecosystem/ClipboardModule'), { ssr: false });
 import { useParams } from 'next/navigation';
 
 export default function ClipboardPage() {
@@ -15,6 +13,5 @@ export default function ClipboardPage() {
     }
   }, [params.id, setRoom]);
 
-  // JUGAD: Use NoSSR rendering inside the module
   return <ClipboardModule />;
 }

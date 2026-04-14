@@ -123,44 +123,87 @@ export default function Home() {
     }
   };
 
-  const handleJoinRoom = async () => {
-    setLoading(true);
-    setError('');
-    const passwordHash = password ? await hashPassword(password) : '';
-    const ecosystem = creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb';
+  const [nearby, setNearby] = useState<any[]>([]);
+  const [ipGroupId, setIpGroupId] = useState('');
 
-    try {
-      const res = await fetch('/api/room/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: inputCode, passwordHash, ecosystem })
-      });
-      const data = await res.json();
-      if (data.success) {
-        router.push(`/${ecosystem}/${inputCode}`);
-      } else {
-        setError(data.message || 'Item not found in this ecosystem');
-      }
-    } catch (err) {
-      setError('Join failed');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    // 1. Check for 'Deep Clean' request from previous version
+    const lastVer = localStorage.getItem('frank_version');
+    if (lastVer !== '14.15') {
+       db.delete().then(() => db.open()); // Purge IndexedDB
+       localStorage.setItem('frank_version', '14.15');
+    }
+
+    const checkNearby = async () => {
+       try {
+         const res = await fetch('/api/room/nearby', { method: 'POST', body: JSON.stringify({ deviceName: 'My Device' }) });
+         const data = await res.json();
+         if (data.success) {
+           setNearby(data.members);
+           setIpGroupId(data.groupId);
+         }
+       } catch (err) {}
+    };
+    checkNearby();
+    const interval = setInterval(checkNearby, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleDeepClean = async () => {
+    if (confirm('Delete all local storage and data? This will fix most "Application Errors" caused by old data.')) {
+      await db.delete();
+      localStorage.clear();
+      window.location.reload();
     }
   };
 
-  if (roomId) return <TransferRoom />;
+  const handleJoinNearby = () => {
+    const roomId = `local-${ipGroupId}`;
+    router.push(`/room/${roomId}`);
+  };
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <main className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans">
+      {/* LAST UPDATE BADGE */}
+      <div className="fixed bottom-6 right-6 z-50 pointer-events-none">
+         <div className="bg-blue-600/20 backdrop-blur-xl border border-blue-500/30 px-4 py-2 rounded-full flex items-center gap-2 shadow-2xl">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Live Update: 14:15</span>
+         </div>
+      </div>
+
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[150px] rounded-full" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[150px] rounded-full" />
 
       <motion.div 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-xl w-full z-10"
+        className="max-w-xl w-full z-10 space-y-8"
       >
-        <div className="flex flex-col items-center mb-12">
+        {/* DISCOVERY WIDGET */}
+        {nearby.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-blue-600/10 border border-blue-500/20 p-4 rounded-3xl flex items-center justify-between backdrop-blur-3xl"
+          >
+             <div className="flex items-center gap-3">
+                <Zap className="w-5 h-5 text-blue-500 animate-pulse" />
+                <div>
+                   <div className="text-xs font-black uppercase tracking-widest text-blue-400">{nearby.length} Nearby device found</div>
+                   <div className="text-[10px] text-gray-500">Connected to same WiFi as you</div>
+                </div>
+             </div>
+             <button 
+               onClick={handleJoinNearby}
+               className="bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-2xl hover:bg-blue-700 transition-all shadow-xl"
+             >
+               Connect Now
+             </button>
+          </motion.div>
+        )}
+
+        <div className="flex flex-col items-center">
           <motion.div 
             whileHover={{ scale: 1.05 }}
             className="w-20 h-20 bg-black border border-white/10 rounded-3xl mb-6 shadow-2xl flex items-center justify-center overflow-hidden"
@@ -272,10 +315,18 @@ export default function Home() {
           )}
         </div>
 
-        <div className="mt-12 text-center text-gray-600 text-xs flex items-center justify-center gap-6">
-          <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> E2EE P2P</span>
-          <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> GLOBAL SIGNALLING</span>
-          <span className="flex items-center gap-1"><Zap className="w-3 h-3" /> 1GBPS READY</span>
+        <div className="mt-12 flex flex-col items-center gap-6">
+           <div className="text-center text-gray-600 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-6">
+              <span className="flex items-center gap-1"><Shield className="w-3 h-3 text-green-500/50" /> E2EE P2P</span>
+              <span className="flex items-center gap-1"><Globe className="w-3 h-3 text-blue-500/50" /> GLOBAL SIGNALLING</span>
+              <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-500/50" /> 1GBPS READY</span>
+           </div>
+           <button 
+             onClick={handleDeepClean}
+             className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-700 hover:text-red-500 transition-all flex items-center gap-2 px-6 py-2 border border-white/5 hover:border-red-500/20 rounded-full"
+           >
+             <Trash2 className="w-3 h-3" /> Repair Storage & Reset
+           </button>
         </div>
       </motion.div>
     </main>

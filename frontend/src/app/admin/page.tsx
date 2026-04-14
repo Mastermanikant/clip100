@@ -58,6 +58,22 @@ export default function AdminDashboard() {
     } catch (err) {}
   };
 
+  const handlePurgeAll = async () => {
+    if (!confirm('☢️ CRITICAL ACTION: This will delete ALL rooms, notebooks, and clipboards globally. Are you 100% sure?')) return;
+    try {
+      const res = await fetch('/api/admin/manage', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'purge_all' })
+      });
+      if (res.ok) {
+        alert('Global Wipe Complete.');
+        fetchStats();
+        setItems([]);
+      }
+    } catch (err) {}
+  };
+
   if (!isLogged) {
     return (
       <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6">
@@ -113,9 +129,17 @@ export default function AdminDashboard() {
                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Multi-Ecosystem Dashboard</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 bg-green-500/10 px-6 py-3 rounded-2xl border border-green-500/20">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Master-Node Online</span>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={handlePurgeAll}
+              className="text-[10px] font-black text-red-500 bg-red-500/10 px-6 py-3 rounded-2xl border border-red-500/20 uppercase tracking-widest hover:bg-red-500/20 transition-all"
+            >
+              Purge Database
+            </button>
+            <div className="flex items-center gap-3 bg-green-500/10 px-6 py-3 rounded-2xl border border-green-500/20">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Master-Node Online</span>
+            </div>
           </div>
         </header>
 

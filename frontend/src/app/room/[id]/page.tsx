@@ -1,8 +1,6 @@
-'use client';
+import dynamic from 'next/dynamic';
 
-import React, { useEffect } from 'react';
-import { useRoomStore } from '@/store/useRoomStore';
-import RoomModule from '@/components/ecosystem/RoomModule';
+const RoomModule = dynamic(() => import('@/components/ecosystem/RoomModule'), { ssr: false });
 import { useParams } from 'next/navigation';
 
 export default function RoomPage() {
@@ -15,6 +13,5 @@ export default function RoomPage() {
     }
   }, [params.id, setRoom]);
 
-  // JUGAD: Use NoSSR rendering inside the module
   return <RoomModule />;
 }
