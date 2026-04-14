@@ -1,3 +1,4 @@
+'use client';
 import dynamic from 'next/dynamic';
 
 const ClipboardModule = dynamic(() => import('@/components/ecosystem/ClipboardModule'), { ssr: false });
