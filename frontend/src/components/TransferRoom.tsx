@@ -52,6 +52,15 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
         
         if (!joinRes.ok) throw new Error('Could not join room');
         
+        // Init Ably
+        const client = await getAblyClient();
+        const channel = getRoomChannel(client, roomId);
+        
+        // Init WebRTC
+        const manager = new WebRTCManager(roomId, client, channel, (data: TransferMessage) => {
+          setMessages((prev) => [...prev, { ...data, timestamp: Date.now(), received: true }]);
+        }, false);
+        
         setRtcManager(manager);
 
         // Fetch Room Data
