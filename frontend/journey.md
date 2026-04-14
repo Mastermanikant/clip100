@@ -33,5 +33,22 @@ Build a stateless, P2P high-performance file transfer platform using Next.js, Ab
 **Constraint**: Signaling requires BOTH Publish and Subscribe permissions to exchange WebRTC offers.
 **Fix**: User must use the "Root" key in Vercel Environment variables.
 
+## 7. The Final Breakthrough: Rational Thinking
+**Problem**: The "Create Room" button was stuck, and the site showed "False Taken" errors for available names.
+**Cause**:
+- The "Taken" error was actually a server 500 being misinterpreted because KV was not linked.
+- Signaling was fragile because it relied on multiple public/private keys.
+**Solution**: 
+- Implement **Token-Only Authentication** for Ably. User only needs 1 key (Root) in Vercel.
+- Improved UI logic to distinguish between "Name Taken" and "Database Offline".
+
+## 8. PRO Mode Activation
+**Features Launched**:
+- Instant direct room creation (Zero Ad Wall).
+- High-Speed WebRTC chunking (Pro Speed).
+- Integrated the user's custom blue-lightning logo.
+- Home-page tab selection (Seamless Notebook vs Transfer).
+
 ---
+*Project Status: LIVE & FULLY OPERATIONAL.*
 *Log curated by Antigravity (Advanced Agentic Coding).*

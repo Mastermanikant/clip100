@@ -58,10 +58,16 @@ export default function TransferRoom() {
         
         setRtcManager(manager);
 
-        // Fetch Notebook
+        // Fetch Room Data
         const res = await fetch(`/api/room/notebook?roomId=${roomId}`);
         const data = await res.json();
         setNotebookText(data.notebook);
+        
+        // Respect creation mode
+        if (data.initialMode === 'notebook') {
+          setActiveTab('notebook');
+        }
+
         setIsJoining(false);
 
         return () => {

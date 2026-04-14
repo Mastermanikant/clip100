@@ -63,13 +63,8 @@ export default function Home() {
       setError('This URL is already taken. Please choose another.');
       return;
     }
-    // Pro users bypass the ad wall
-    if (isPro) {
-      executeCreateRoom();
-    } else {
-      setShowAd(true);
-      setAdTimer(1); 
-    }
+    // Pro features: Instant Creation + No Ads
+    executeCreateRoom();
   };
 
   const executeCreateRoom = async () => {

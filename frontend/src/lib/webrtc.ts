@@ -20,6 +20,7 @@ export class WebRTCManager {
     isPro: boolean = false
   ) {
     this.isPro = isPro;
+    // PRO JUGAD: Faster transfer for paid users
     this.throttleDelay = isPro ? 0 : 5; 
     this.setupSignaling();
   }
