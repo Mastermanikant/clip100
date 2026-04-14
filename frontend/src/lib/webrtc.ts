@@ -88,21 +88,50 @@ export class WebRTCManager {
     return pc;
   }
 
+  private generateFileId(file: File) {
+    return `${file.name}-${file.size}-${file.lastModified}`;
+  }
+
   private setupDataChannels(peerId: string, channels: RTCDataChannel[]) {
     const existing = this.dataChannels.get(peerId) || [];
     this.dataChannels.set(peerId, [...existing, ...channels]);
     
     channels.forEach(channel => {
+      channel.binaryType = 'arraybuffer';
       channel.onmessage = async (event) => {
+        if (event.data instanceof ArrayBuffer) {
+           // Binary Chunk JUGAD: We handle this based on current active transfer
+           const active = (this as any).activeTransfer;
+           if (active) {
+             await db.saveChunk(active.fileId, active.currentIndex, event.data);
+             active.currentIndex++;
+             const progress = Math.round((active.currentIndex / active.totalChunks) * 100);
+             this.onMessage({ type: 'progress', fileId: active.fileId, progress });
+             
+             if (active.currentIndex === active.totalChunks) {
+               this.onMessage({ type: 'file_complete', fileId: active.fileId });
+               (this as any).activeTransfer = null;
+             }
+           }
+           return;
+        }
+
         const data = JSON.parse(event.data);
-        if (data.type === 'chunk') {
-          // Convert back from JSON array to ArrayBuffer
-          const buffer = new Uint8Array(data.payload).buffer;
-          await db.saveChunk(data.fileId, data.chunkIndex, buffer);
-          this.onMessage({ type: 'progress', fileId: data.fileId, progress: data.progress });
-        } else if (data.type === 'resume_request') {
-          // Handle resume logic here
-          console.log('Resume requested from chunk:', data.lastIndex);
+        if (data.type === 'file_init') {
+          const meta = await db.getFileMeta(data.fileId);
+          const lastIndex = meta ? meta.lastChunkIndex : -1;
+          
+          (this as any).activeTransfer = { 
+            fileId: data.fileId, 
+            currentIndex: lastIndex + 1, 
+            totalChunks: data.totalChunks 
+          };
+
+          this.sendData({ type: 'file_ready', fileId: data.fileId, lastIndex });
+        } else if (data.type === 'file_ready') {
+          // Sender side: Start from lastIndex + 1
+          (this as any).resumeIndex = data.lastIndex + 1;
+          (this as any).waitingForReady = false;
         } else {
           this.onMessage(data);
         }
@@ -111,13 +140,20 @@ export class WebRTCManager {
   }
 
   public async sendFile(file: File, onProgress: (p: number) => void) {
-    const fileId = Math.random().toString(36).substring(7);
-    const chunkSize = 16384 * (this.isPro ? 4 : 1); // 64KB for Pro, 16KB for Free
+    const fileId = this.generateFileId(file);
+    const chunkSize = 16384 * (this.isPro ? 4 : 1);
     const totalChunks = Math.ceil(file.size / chunkSize);
 
-    // Auto-Resume: Check if we already have progress
-    const lastProgress = await db.getFileProgress(fileId);
-    const startChunk = lastProgress !== -1 ? lastProgress + 1 : 0;
+    // Handshake: Inform receiver
+    this.sendData({ type: 'file_init', fileId, totalChunks, fileName: file.name });
+    
+    // Wait for receiver to be ready (JUGAD: busy wait or promise)
+    (this as any).waitingForReady = true;
+    while ((this as any).waitingForReady) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    const startChunk = (this as any).resumeIndex || 0;
 
     await db.startNewFile({
       fileId,
@@ -133,27 +169,17 @@ export class WebRTCManager {
       const end = Math.min(file.size, start + chunkSize);
       const chunk = await file.slice(start, end).arrayBuffer();
       
-      const payload = {
-        type: 'chunk',
-        fileId,
-        chunkIndex: i,
-        payload: Array.from(new Uint8Array(chunk)), // Simplified for JSON
-        progress: Math.round(((i + 1) / totalChunks) * 100)
-      };
-
       this.dataChannels.forEach(channels => {
-        // Parallel Channel Jugad: Round-Robin distribution
         const openChannels = channels.filter(c => c.readyState === 'open');
         if (openChannels.length > 0) {
           const channel = openChannels[this.channelIndex % openChannels.length];
-          channel.send(JSON.stringify(payload));
+          channel.send(chunk);
           this.channelIndex++;
         }
       });
 
-      onProgress(payload.progress);
+      onProgress(Math.round(((i + 1) / totalChunks) * 100));
 
-      // JUGAD: Speed throttling for free users
       if (this.throttleDelay > 0) {
         await new Promise(r => setTimeout(r, this.throttleDelay));
       }

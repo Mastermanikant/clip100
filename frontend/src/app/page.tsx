@@ -5,10 +5,12 @@ import { useRoomStore } from '@/store/useRoomStore';
 import { hashPassword } from '@/lib/crypto';
 import TransferRoom from '@/components/TransferRoom';
 import { getAblyClient } from '@/lib/ably';
+import { useRouter } from 'next/navigation';
 import { Shield, Zap, Globe, Lock, Crown, ChevronRight, Share2, Info, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Home() {
+  const router = useRouter();
   const { roomId, setRoom, isLocalOnly } = useRoomStore();
   const [vanityName, setVanityName] = useState('');
   const [inputCode, setInputCode] = useState('');
@@ -18,7 +20,7 @@ export default function Home() {
   const [showAd, setShowAd] = useState(false);
   const [adTimer, setAdTimer] = useState(1);
   const [availability, setAvailability] = useState<'IDLE' | 'CHECKING' | 'AVAILABLE' | 'TAKEN'>('IDLE');
-  const [creationMode, setCreationMode] = useState<'transfer' | 'notebook'>('transfer');
+  const [creationMode, setCreationMode] = useState<'transfer' | 'notebook' | 'clipboard'>('transfer');
   const [isPro, setIsPro] = useState(false);
   
   useEffect(() => {
@@ -69,7 +71,6 @@ export default function Home() {
       setError('This URL is already taken. Please choose another.');
       return;
     }
-    // Pro features: Instant Creation + No Ads
     executeCreateRoom();
   };
 
@@ -91,7 +92,7 @@ export default function Home() {
           isPublic: !password, 
           isPro, 
           initialMode: creationMode,
-          adminId // Pass the creator's ID
+          adminId
         })
       });
       
@@ -102,7 +103,8 @@ export default function Home() {
 
       const data = await res.json();
       if (data.success) {
-        setRoom(data.roomId, data.roomId, isLocalOnly);
+        const prefix = creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb';
+        router.push(`/${prefix}/${data.roomId}`);
       } else {
         setError(data.message);
       }
@@ -126,7 +128,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.success) {
-        setRoom(inputCode, inputCode, false);
+        router.push(`/room/${inputCode}`);
       } else {
         setError(data.message || 'Room not found');
       }
@@ -141,7 +143,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Premium Background */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[150px] rounded-full" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[150px] rounded-full" />
 
@@ -158,36 +159,44 @@ export default function Home() {
             <img src="/logo.png" alt="Frank Drop Logo" className="w-full h-full object-cover" />
           </motion.div>
           <h1 className="text-5xl font-black tracking-tighter mb-2 italic">FRANK DROP</h1>
-          <p className="text-gray-500 font-medium">Powering <span className="text-blue-400">frank-drop.vercel.app</span> ecosystem</p>
+          <p className="text-gray-500 font-medium text-center">Powering <span className="text-blue-400">frank-drop.vercel.app</span> ecosystem</p>
         </div>
 
         <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)]">
           {!showAd ? (
             <div className="space-y-8">
-              <div className="grid grid-cols-2 gap-4 p-1 bg-black/50 rounded-2xl border border-white/5">
+              <div className="grid grid-cols-3 gap-3 p-1 bg-black/50 rounded-2xl border border-white/5">
                 <button 
                   onClick={() => setCreationMode('transfer')}
-                  className={`py-3 px-6 rounded-xl text-sm font-bold transition-all ${creationMode === 'transfer' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
+                  className={`py-3 px-2 rounded-xl text-[10px] md:text-sm font-bold transition-all ${creationMode === 'transfer' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
                 >
                   Transfer
                 </button>
                 <button 
                   onClick={() => setCreationMode('notebook')}
-                  className={`py-3 px-6 rounded-xl text-sm font-bold transition-all ${creationMode === 'notebook' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
+                  className={`py-3 px-2 rounded-xl text-[10px] md:text-sm font-bold transition-all ${creationMode === 'notebook' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
                 >
                   Notebook
+                </button>
+                <button 
+                  onClick={() => setCreationMode('clipboard')}
+                  className={`py-3 px-2 rounded-xl text-[10px] md:text-sm font-bold transition-all ${creationMode === 'clipboard' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
+                >
+                  Clipboard
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div className="relative">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-[10px]">frank-drop.vercel.app/d/</span>
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-[10px] hidden md:block">
+                    frank-drop.vercel.app/{creationMode === 'transfer' ? 'room' : creationMode === 'notebook' ? 'nb' : 'cb'}/
+                  </span>
                   <input
                     type="text"
                     placeholder="custom-name"
                     value={vanityName}
                     onChange={(e) => setVanityName(e.target.value)}
-                    className={`w-full bg-black/60 border rounded-2xl pl-44 pr-12 py-5 text-lg font-bold focus:outline-none focus:ring-2 transition-all placeholder:text-gray-800 ${
+                    className={`w-full bg-black/60 border rounded-2xl md:pl-48 pr-12 py-5 text-lg font-bold focus:outline-none focus:ring-2 transition-all placeholder:text-gray-800 ${
                       availability === 'AVAILABLE' ? 'border-green-500/50 focus:ring-green-500/30' : 
                       availability === 'TAKEN' ? 'border-red-500/50 focus:ring-red-500/30' : 
                       'border-white/5 focus:ring-blue-500/50'

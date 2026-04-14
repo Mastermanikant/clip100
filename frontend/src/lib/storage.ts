@@ -30,7 +30,15 @@ export class FrankDropDB extends Dexie {
 
   async saveChunk(fileId: string, chunkIndex: number, data: ArrayBuffer) {
     await this.chunks.add({ fileId, chunkIndex, data });
-    await this.meta.update(fileId, { lastChunkIndex: chunkIndex });
+    // JUGAD: Efficiently update the meta so we know where we left off
+    const meta = await this.meta.get(fileId);
+    if (meta && chunkIndex > meta.lastChunkIndex) {
+      await this.meta.update(fileId, { lastChunkIndex: chunkIndex });
+    }
+  }
+
+  async getFileMeta(fileId: string): Promise<FileMeta | undefined> {
+    return await this.meta.get(fileId);
   }
 
   async getFileProgress(fileId: string) {

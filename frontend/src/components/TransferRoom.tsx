@@ -58,8 +58,31 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
         const channel = getRoomChannel(client, roomId);
         
         // Init WebRTC
-        const manager = new WebRTCManager(roomId, client, channel, (data: TransferMessage) => {
-          setMessages((prev) => [...prev, { ...data, timestamp: Date.now(), received: true }]);
+        const manager = new WebRTCManager(roomId, client, channel, async (data: any) => {
+          if (data.type === 'progress') {
+            setMessages((prev) => prev.map(m => 
+              (m.type === 'file' && m.fileName && data.fileId.includes(m.fileName)) 
+                ? { ...m, progress: data.progress, status: 'Receiving' } 
+                : m
+            ));
+          } else if (data.type === 'file_complete') {
+            const { db } = await import('@/lib/storage');
+            const res = await db.assembleFile(data.fileId);
+            if (res) {
+              const a = document.createElement('a');
+              a.href = res.url;
+              a.download = res.fileName;
+              a.click();
+              await db.cleanup(data.fileId);
+              setMessages((prev) => prev.map(m => 
+                (m.type === 'file' && m.fileName && data.fileId.includes(m.fileName)) 
+                  ? { ...m, progress: 100, status: 'Completed' } 
+                  : m
+              ));
+            }
+          } else {
+            setMessages((prev) => [...prev, { ...data, timestamp: Date.now(), received: true }]);
+          }
         }, false);
         
         setRtcManager(manager);
@@ -127,10 +150,11 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
       setMessages(prev => [...prev, { 
         type: 'file', 
         fileName: file.name, 
-        fileSize: (file.size / 1024).toFixed(1) + ' KB', 
+        fileSize: (file.size / (1024 * 1024)).toFixed(1) + ' MB', 
         progress: 0, 
-        status: 'Sending',
-        received: false 
+        status: 'Preparing',
+        received: false,
+        timestamp: Date.now()
       }]);
       
       await rtcManager.sendFile(file, (progress) => {
@@ -138,6 +162,10 @@ export default function TransferRoom({ initialTab = 'chat' }: TransferRoomProps)
           (m.type === 'file' && m.fileName === file.name) ? { ...m, progress, status: progress === 100 ? 'Completed' : 'Sending' } : m
         ));
       });
+
+      // Notify completion
+      const fileId = `${file.name}-${file.size}-${file.lastModified}`;
+      rtcManager.sendData({ type: 'file_complete', fileId });
     }
   };
 
