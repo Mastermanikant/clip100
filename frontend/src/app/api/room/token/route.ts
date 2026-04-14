@@ -1,38 +1,43 @@
-import Ably from 'ably';
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  // JUGAD: Skip execution during Next.js build phase to prevent static optimization crashes
-  if (process.env.NEXT_PHASE === 'phase-production-build' || process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
-    return NextResponse.json({ build: 'skipped' });
+  const apiKey = process.env.ABLY_API_KEY;
+  if (!apiKey || !apiKey.includes(':')) {
+    return NextResponse.json({ error: 'Invalid ABLY_API_KEY' }, { status: 500 });
   }
 
-  const apiKey = process.env.ABLY_API_KEY;
-  
-  if (!apiKey) {
-    console.error('ABLY_API_KEY is missing');
-    return NextResponse.json({ error: 'Missing ABLY_API_KEY' }, { status: 500 });
-  }
+  // JUGAD: Manual Token Signing to bypass Ably SDK build crashes
+  // Ably API Key format is id:secret
+  const [keyName, keySecret] = apiKey.split(':');
 
   try {
-    // Force Rest client to only initialize in runtime
-    const client = new Ably.Rest({ key: apiKey });
+    const clientId = `user-${Math.random().toString(36).substring(7)}`;
+    const capability = JSON.stringify({ '*': ['*'] });
+    const timestamp = Date.now();
+    const nonce = Math.random().toString(36).substring(7);
+    const ttl = 3600000; // 1 hour
+
+    // Sign the request manually using HMAC-SHA256
+    // Format: [clientId, ttl, capability, nonce, timestamp]
+    const signData = [clientId, ttl, capability, nonce, timestamp].join('\n') + '\n';
+    const mac = crypto.createHmac('sha256', keySecret).update(signData).digest('base64');
+
+    const tokenRequest = {
+      keyName,
+      clientId,
+      capability,
+      timestamp,
+      nonce,
+      ttl,
+      mac
+    };
     
-    // Explicitly handle the promise for Token Request
-    const tokenRequestData = await new Promise((resolve, reject) => {
-      client.auth.createTokenRequest({ 
-        clientId: `user-${Math.random().toString(36).substring(7)}` 
-      }, (err, tokenRequest) => {
-        if (err) reject(err);
-        else resolve(tokenRequest);
-      });
-    });
-    
-    return NextResponse.json(tokenRequestData);
+    return NextResponse.json(tokenRequest);
   } catch (error: any) {
-    console.error('Token generation failed:', error.message || error);
-    return NextResponse.json({ error: 'Failed to generate token', details: error.message }, { status: 500 });
+    console.error('Manual Token generation failed:', error);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
