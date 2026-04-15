@@ -1,55 +1,36 @@
-# Frank Drop | Next-Gen P2P Ecosystem
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-A world-class, real-time, cross-device file and text transfer platform by **FrankBase**. Built with the "Indian Jugad" philosophy: high-end features, zero hosting costs.
+## Getting Started
 
-## 🚀 Live Demo & Hosting
-- **Frontend**: Deploy to **Vercel** (Root: `frontend`).
-- **Storage**: Enable **Vercel KV**.
-- **Signaling**: Add `ABLY_API_KEY` to Vercel environment variables.
-
-## 📱 Features
-- **P2P File Transfer**: Ultra-fast direct device-to-device sharing.
-- **The Notebook**: Persistent shared text space (Copy-Paste) that stays for 30 days.
-- **Auto-Resume**: Connection dropped? No problem. It resumes from the exact byte it stopped.
-- **Vanity URLs**: Create specific room links like `drop.frankbase.com/d/my-agency`.
-- **E2EE**: End-to-end encryption for maximum privacy.
-
-## 📲 Installing the App
-### Browser (PWA)
-1. Open `drop.frankbase.com` in Chrome or Safari.
-2. Click **"Add to Home Screen"** or the **"Install App"** icon in the URL bar.
-
-### Android/iOS (Native)
-The native app files are located in the `frontend` folder. To build them:
-1. `cd frontend`
-2. `npm install`
-3. `npx cap add android` or `npx cap add ios`
-4. `npx cap open android`
-
----
-
-## 🛠️ Developer Checklist (Push to GitHub)
-Replace the URL with your private repository link.
+First, run the development server:
 
 ```bash
-# 1. Initialize Git & Create Local Commit
-git init
-git add .
-git commit -m "Initialize Frank Drop Master Ecosystem"
-
-# 2. Add your Private Repo as remote
-git remote add origin https://github.com/Mastermanikant/frank-drop-.git
-
-# 3. Push to GitHub
-git branch -M main
-git push -u origin main
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
----
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## 📖 Usage Guide
-1. **Nearby**: Open on two devices in the same Wi-Fi for **Host-level speeds**.
-2. **Notebook**: Type text on PC, open the same room on Mobile, and copy it instantly.
-3. **Public/Private**: Use a password for mission-critical agency transfers.
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-Developed by **Antigravity** for **FrankBase**.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
