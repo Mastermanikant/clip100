@@ -1,57 +1,70 @@
 'use client';
-import React, { ReactNode } from 'react';
-import { motion, HTMLMotionProps } from 'framer-motion';
 
-interface CyberButtonProps extends Omit<HTMLMotionProps<'button'>, 'className'> {
+import { motion } from 'framer-motion';
+import { Loader2 } from 'lucide-react';
+
+interface CyberButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
-  icon?: ReactNode;
-  children: ReactNode;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
   className?: string;
+  type?: 'button' | 'submit';
 }
 
-export function CyberButton({
+const variantStyles = {
+  primary:
+    'bg-white text-black hover:bg-gray-200 active:bg-gray-300',
+  secondary:
+    'glass text-white hover:bg-white/[0.08]',
+  danger:
+    'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20',
+  ghost:
+    'bg-transparent text-gray-400 hover:text-white hover:bg-white/[0.05]',
+};
+
+const sizeStyles = {
+  sm: 'px-4 py-2 text-xs gap-1.5',
+  md: 'px-6 py-3 text-sm gap-2',
+  lg: 'px-8 py-4 text-base gap-3',
+};
+
+export default function CyberButton({
   variant = 'primary',
   size = 'md',
   isLoading = false,
   icon,
   children,
+  onClick,
+  disabled = false,
   className = '',
-  disabled,
-  ...props
+  type = 'button',
 }: CyberButtonProps) {
-  const baseClasses = 'relative inline-flex items-center justify-center font-bold uppercase tracking-widest transition-all focus:outline-none';
-  
-  const sizeClasses = {
-    sm: 'px-4 py-2 text-xs rounded-lg gap-1.5',
-    md: 'px-6 py-3 text-sm rounded-xl gap-2',
-    lg: 'px-8 py-4 text-base rounded-2xl gap-3 w-full'
-  };
-
-  const variantClasses = {
-    primary: 'bg-white text-black hover:bg-gray-100 disabled:bg-white/20 disabled:text-gray-500',
-    secondary: 'bg-white/5 border border-white/10 text-white hover:bg-white/10 backdrop-blur-md',
-    danger: 'bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20',
-    ghost: 'bg-transparent text-gray-400 hover:text-white hover:bg-white/5'
-  };
-
   return (
     <motion.button
-      whileHover={disabled ? {} : { scale: 1.02 }}
-      whileTap={disabled ? {} : { scale: 0.98 }}
-      className={`${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]} ${className}`}
+      type={type}
+      onClick={onClick}
       disabled={disabled || isLoading}
-      {...props}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className={`
+        inline-flex items-center justify-center font-bold rounded-button
+        uppercase tracking-widest transition-all duration-200
+        disabled:opacity-50 disabled:cursor-not-allowed
+        ${variantStyles[variant]}
+        ${sizeStyles[size]}
+        ${className}
+      `}
     >
       {isLoading ? (
-        <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        <Loader2 className="w-4 h-4 animate-spin" />
       ) : (
-        <>
-          {icon && <span className="opacity-80">{icon}</span>}
-          <span>{children}</span>
-        </>
+        icon
       )}
+      {children}
     </motion.button>
   );
 }

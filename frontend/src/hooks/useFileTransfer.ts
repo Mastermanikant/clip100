@@ -1,57 +1,61 @@
-'use client';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { db } from '@/lib/storage';
+import { CHUNK_SIZE } from '@/lib/constants';
 
-export interface TransferState {
-  id: string;
-  name: string;
-  size: string;
-  progress: number;
-  status: 'encrypting' | 'sending' | 'receiving' | 'verifying' | 'completed' | 'paused' | 'error';
-  speed?: string;
-  direction: 'incoming' | 'outgoing';
+interface TransferState {
+  [fileId: string]: {
+    name: string;
+    size: number;
+    progress: number;
+    status: 'encrypting' | 'sending' | 'receiving' | 'verifying' | 'completed' | 'error';
+    speed: number;
+  };
 }
 
-export function useFileTransfer(dataChannel: RTCDataChannel | null) {
-  const [transfers, setTransfers] = useState<TransferState[]>([]);
-  
-  // Very simplified file send logic since full chunking is complex
-  // In a robust implementation, this would read FileReader, chunk via while loop, send via dataChannel
+export function useFileTransfer(dataChannelRef: React.MutableRefObject<RTCDataChannel | null>) {
+  const [transfers, setTransfers] = useState<TransferState>({});
+
   const sendFile = async (file: File) => {
-    if (!dataChannel || dataChannel.readyState !== 'open') return;
+    const fileId = Math.random().toString(36).slice(2);
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
-    const id = Math.random().toString(36).substring(7);
-    const newTransfer: TransferState = {
-      id,
-      name: file.name,
-      size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-      progress: 0,
-      status: 'sending',
-      direction: 'outgoing'
-    };
-    
-    setTransfers(prev => [...prev, newTransfer]);
-    
-    // Simulate send for now due to user spec skipping R2 and keeping it local
-    let progress = 0;
-    const interval = setInterval(() => {
-       progress += 10;
-       if (progress >= 100) {
-          clearInterval(interval);
-          setTransfers(prev => prev.map(t => t.id === id ? { ...t, progress: 100, status: 'completed' } : t));
-       } else {
-          setTransfers(prev => prev.map(t => t.id === id ? { ...t, progress } : t));
-       }
-    }, 500);
+    setTransfers(prev => ({
+      ...prev,
+      [fileId]: { name: file.name, size: file.size, progress: 0, status: 'sending', speed: 0 }
+    }));
+
+    if (!dataChannelRef.current || dataChannelRef.current.readyState !== 'open') {
+      setTransfers(prev => ({ ...prev, [fileId]: { ...prev[fileId], status: 'error' } }));
+      return;
+    }
+
+    // Send metadata
+    dataChannelRef.current.send(JSON.stringify({
+      type: 'file_meta',
+      fileId,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+      totalChunks
+    }));
+
+    let offset = 0;
+    while (offset < file.size) {
+      const chunk = file.slice(offset, offset + CHUNK_SIZE);
+      const buffer = await chunk.arrayBuffer();
+      
+      // We would encrypt here in Phase 3
+      dataChannelRef.current.send(buffer);
+      offset += CHUNK_SIZE;
+      
+      setTransfers(prev => ({
+        ...prev,
+        [fileId]: { ...prev[fileId], progress: Math.min(100, Math.round((offset / file.size) * 100)) }
+      }));
+    }
+
+    setTransfers(prev => ({ ...prev, [fileId]: { ...prev[fileId], status: 'completed' } }));
   };
 
-  const cancelTransfer = (id: string) => {
-    setTransfers(prev => prev.filter(t => t.id !== id));
-  };
-  
-  const downloadFile = (id: string) => {
-     // Trigger dummy download logic for mockup
-  };
-
-  return { transfers, sendFile, cancelTransfer, downloadFile };
+  return { transfers, sendFile };
 }

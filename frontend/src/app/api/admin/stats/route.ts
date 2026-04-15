@@ -3,27 +3,28 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.ADMIN_SECRET}`) {
-    return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-  }
-
+export async function GET() {
   try {
     const linkKeys = await redis.keys('link:*');
-    const noteKeys = await redis.keys('notes:*');
+    const notesKeys = await redis.keys('notes:*');
     const nearbyKeys = await redis.keys('nearby:*');
-    
+    const visitsRaw = await redis.get('stats:visits');
+    const totalVisits = parseInt(visitsRaw || '0');
+
     return NextResponse.json({
       success: true,
       stats: {
         totalRooms: linkKeys.length,
-        totalNotebooks: noteKeys.length,
+        totalNotebooks: notesKeys.length,
         totalNearby: nearbyKeys.length,
-        totalVisits: linkKeys.length + noteKeys.length, // mock visits
-      }
+        totalVisits,
+      },
     });
   } catch (error) {
-    return NextResponse.json({ success: false, message: 'Stats fetch failed' }, { status: 500 });
+    console.error('[Admin Stats]', error);
+    return NextResponse.json(
+      { success: false, message: 'Stats fetch failed' },
+      { status: 500 }
+    );
   }
 }

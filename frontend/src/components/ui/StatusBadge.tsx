@@ -1,41 +1,35 @@
-import React from 'react';
+'use client';
 
 interface StatusBadgeProps {
   status: 'online' | 'offline' | 'connecting';
   label?: string;
 }
 
-export function StatusBadge({ status, label }: StatusBadgeProps) {
-  const colors = {
-    online: 'bg-green-500',
-    offline: 'bg-red-500',
-    connecting: 'bg-amber-500'
-  };
+const statusConfig = {
+  online: { color: 'bg-green-500', text: 'text-green-500', label: 'Connected' },
+  offline: { color: 'bg-red-500', text: 'text-red-500', label: 'Disconnected' },
+  connecting: { color: 'bg-amber-500', text: 'text-amber-500', label: 'Connecting...' },
+};
 
-  const textColors = {
-    online: 'text-green-500',
-    offline: 'text-gray-500',
-    connecting: 'text-amber-500'
-  };
-
-  const defaultLabels = {
-    online: 'P2P Active',
-    offline: 'Disconnected',
-    connecting: 'Connecting...'
-  };
-
-  const isOnline = status === 'online';
+export default function StatusBadge({ status, label }: StatusBadgeProps) {
+  const config = statusConfig[status];
 
   return (
     <div className="flex items-center gap-2">
       <span className="relative flex h-3 w-3">
-        {status !== 'offline' && (
-          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${colors[status]} opacity-75`} />
+        {status === 'online' && (
+          <span
+            className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.color} opacity-75`}
+          />
         )}
-        <span className={`relative inline-flex rounded-full h-3 w-3 ${colors[status]}`} />
+        <span
+          className={`relative inline-flex rounded-full h-3 w-3 ${config.color}`}
+        />
       </span>
-      <span className={`text-[10px] font-bold uppercase tracking-widest ${textColors[status]}`}>
-        {label || defaultLabels[status]}
+      <span
+        className={`text-[10px] font-bold uppercase tracking-widest ${config.text}`}
+      >
+        {label || config.label}
       </span>
     </div>
   );

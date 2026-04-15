@@ -1,0 +1,101 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { Zap, ChevronRight, Check, X, Loader2, ArrowLeft } from 'lucide-react';
+import CyberButton from '@/components/ui/CyberButton';
+import CyberInput from '@/components/ui/CyberInput';
+import CyberCard from '@/components/ui/CyberCard';
+import GlowBackground from '@/components/ui/GlowBackground';
+import { isValidRoomId } from '@/lib/utils';
+import Link from 'next/link';
+
+export default function LinkCreatePage() {
+  const router = useRouter();
+  const [roomId, setRoomId] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleJoinOrCreate = async () => {
+    if (!roomId.trim() || !isValidRoomId(roomId)) {
+      setError('Invalid room name');
+      return;
+    }
+    
+    setIsLoading(true);
+    setError('');
+
+    try {
+      // Just check if room exists or create, routing is same logic for client basically
+      const res = await fetch(`/api/room/check?roomId=${encodeURIComponent(roomId)}&ecosystem=link`);
+      const data = await res.json();
+      
+      if (data.available) {
+        // Create it
+        await fetch('/api/room/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vanityName: roomId, ecosystem: 'link', isPublic: true }),
+        });
+      }
+      
+      router.push(`/link/${roomId}`);
+    } catch {
+      setError('Connection failed. Try again.');
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-cyber-bg text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <GlowBackground color="bg-blue-600" />
+      
+      <div className="absolute top-6 left-6 z-20">
+        <Link href="/">
+          <button className="p-3 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-all text-gray-400">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        </Link>
+      </div>
+
+      <div className="max-w-md w-full z-10 space-y-8">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-blue-500/20 shadow-[0_0_50px_rgba(59,130,246,0.1)]">
+            <Zap className="w-8 h-8 text-blue-500" />
+          </div>
+          <h1 className="text-3xl font-black italic tracking-widest uppercase mb-2">
+            Frank<span className="text-blue-500">Link</span>
+          </h1>
+          <p className="text-gray-500 text-sm uppercase tracking-widest font-bold">
+            Join or create a room
+          </p>
+        </div>
+
+        <CyberCard className="p-8 space-y-6" glow="blue">
+          <div className="space-y-4">
+            <CyberInput
+              placeholder="Room Code or Name"
+              value={roomId}
+              onChange={(val) => setRoomId(val.toUpperCase())}
+              maxLength={20}
+              monospace
+              autoFocus
+            />
+            {error && <p className="text-red-400 text-xs font-bold text-center">{error}</p>}
+            <CyberButton
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={handleJoinOrCreate}
+              isLoading={isLoading}
+              disabled={!roomId.trim() || roomId.length < 3}
+            >
+              Join Room
+            </CyberButton>
+          </div>
+        </CyberCard>
+      </div>
+    </main>
+  );
+}

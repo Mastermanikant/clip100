@@ -1,108 +1,121 @@
 'use client';
+
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Wifi, Router, Smartphone, Monitor } from 'lucide-react';
-import { RoomHeader } from '@/components/RoomHeader';
+import { motion } from 'framer-motion';
+import { Wifi, Router, Smartphone, Monitor, ChevronRight } from 'lucide-react';
+import CyberCard from '@/components/ui/CyberCard';
+import GlowBackground from '@/components/ui/GlowBackground';
+import Link from 'next/link';
 
-export default function FrankNearby() {
-  const [isScanning, setIsScanning] = useState(false);
-  const [peers, setPeers] = useState<any[]>([]);
+interface NearbyDevice {
+  id: string;
+  name: string;
+  type: string;
+}
 
-  const startScan = () => {
-    setIsScanning(true);
-    // Ping API every 5 seconds
-    const interval = setInterval(async () => {
-       const res = await fetch('/api/room/nearby', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deviceName: navigator.userAgent.includes('Mobile') ? 'Mobile Device' : 'Desktop PC' })
-       });
-       if (res.ok) {
-          const data = await res.json();
-          setPeers(data.members || []);
-       }
-    }, 5000);
-    // Initial ping
-    fetch('/api/room/nearby', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceName: navigator.userAgent.includes('Mobile') ? 'Mobile Device' : 'Desktop PC' })
-    }).then(res => res.json()).then(data => setPeers(data.members || []));
-
-    return () => clearInterval(interval);
-  };
+export default function NearbyPage() {
+  const [isScanning, setIsScanning] = useState(true);
+  const [devices, setDevices] = useState<NearbyDevice[]>([]);
+  const [groupId, setGroupId] = useState('');
 
   useEffect(() => {
-     let cleanup: any;
-     if (isScanning) {
-        cleanup = startScan();
-     }
-     return () => { if (cleanup) cleanup() };
-  }, [isScanning]);
+    const scan = async () => {
+      try {
+        const res = await fetch('/api/nearby', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceName: 'My Device' }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setDevices(data.members || []);
+          setGroupId(data.groupId);
+        }
+      } catch (err) {
+        console.error('Scan error:', err);
+      } finally {
+        setIsScanning(false);
+      }
+    };
+    
+    scan();
+    const interval = setInterval(scan, 5000); // refresh every 5s
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <main className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden bg-black">
-      <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
-        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vw] h-[60vw] rounded-full blur-[150px] opacity-[0.03] transition-colors duration-1000 ${isScanning ? 'bg-green-500 animate-pulse' : 'bg-gray-800'}`} />
-      </div>
+    <main className="min-h-screen bg-[#050505] text-white flex flex-col items-center p-6 relative overflow-hidden">
+      <GlowBackground color="bg-green-600" />
 
-      <motion.div 
-        layout
-        className="max-w-4xl w-full h-[90vh] bg-white/[0.02] border border-white/5 rounded-3xl backdrop-blur-2xl shadow-2xl flex flex-col overflow-hidden relative z-10"
-      >
-        <RoomHeader 
-           title="FrankNearby" 
-           roomId="LAN-DISCOVERY" 
-           isConnected={isScanning} 
-           peerCount={peers.length}
-           accentColor="text-green-500" 
-        />
-
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center space-y-12 relative">
-           
-           <div className="relative flex justify-center items-center w-full max-w-sm aspect-square">
-              {/* Radar Circles */}
-              {[1, 2, 3].map(i => (
-                <div key={i} className={`absolute border border-green-500/20 rounded-full w-full h-full scale-[${i*0.3}] ${isScanning ? 'animate-ping' : ''}`} style={{ animationDuration: `${i*1.5}s` }} />
-              ))}
-              
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-                 <button 
-                   onClick={() => setIsScanning(!isScanning)}
-                   className={`w-24 h-24 rounded-full flex items-center justify-center border-2 transition-all ${isScanning ? 'bg-green-500/20 border-green-500 text-green-500 shadow-[0_0_50px_rgba(34,197,94,0.3)]' : 'bg-white/5 border-white/10 text-gray-500 hover:border-green-500/50 hover:text-green-500'}`}
-                 >
-                    <Router className={`w-10 h-10 ${isScanning ? 'animate-pulse' : ''}`} />
-                 </button>
-              </div>
-
-              {/* Peers orbiting */}
-              <AnimatePresence>
-                {peers.map((p, i) => {
-                  const angle = (i * 360) / (peers.length || 1);
-                  return (
-                    <motion.div
-                      key={p.id}
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0 }}
-                      className="absolute w-20 h-20 rounded-2xl bg-white/5 border border-green-500/30 backdrop-blur-md flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-green-500/20 transition-all z-20"
-                      style={{ transform: `rotate(${angle}deg) translateY(-140px) rotate(-${angle}deg)` }}
-                      onClick={() => alert('Connect to ' + p.name + ' - WebRTC Direct')}
-                    >
-                      {p.name.includes('Mobile') ? <Smartphone className="w-6 h-6 text-green-400" /> : <Monitor className="w-6 h-6 text-green-400" />}
-                      <span className="text-[9px] font-bold uppercase truncate px-2 text-white">{p.name}</span>
-                    </motion.div>
-                  )
-                })}
-              </AnimatePresence>
-           </div>
-           
-           <div className="text-center">
-             <h2 className="text-2xl font-black uppercase tracking-widest text-white mb-2">{isScanning ? 'Scanning LAN' : 'Radar Offline'}</h2>
-             <p className="text-sm text-gray-500 max-w-xs mx-auto">Devices on the same Wi-Fi network will appear above automatically.</p>
-           </div>
+      <div className="w-full max-w-4xl z-10 pt-12 space-y-12">
+        <div className="text-center">
+          <div className="inline-flex relative">
+            <div className="absolute inset-0 bg-green-500 blur-2xl opacity-20" />
+            <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/20 relative">
+              <Wifi className="w-10 h-10 text-green-500" />
+            </div>
+          </div>
+          <h1 className="text-4xl font-black italic tracking-widest uppercase mt-6 mb-2">
+            Frank<span className="text-green-500">Nearby</span>
+          </h1>
+          <p className="text-gray-500 text-sm uppercase tracking-widest font-bold flex items-center justify-center gap-2">
+            Network ID: <span className="text-green-500 font-mono">{groupId || '---'}</span>
+          </p>
         </div>
-      </motion.div>
+
+        <div className="relative border border-white/10 rounded-3xl p-8 bg-black/40 backdrop-blur-xl min-h-[400px]">
+          {isScanning && devices.length === 0 ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-6">
+              <div className="relative">
+                <div className="w-32 h-32 border-2 border-green-500 rounded-full opacity-20 animate-ping absolute inset-0 auto-ping-1" />
+                <div className="w-32 h-32 border-2 border-green-500 rounded-full opacity-40 animate-ping absolute inset-0 animate-delay-200" />
+                <Router className="w-12 h-12 text-green-500 z-10 relative" />
+              </div>
+              <p className="text-gray-400 font-bold uppercase tracking-widest text-sm animate-pulse">
+                Scanning Local Network...
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {devices.length === 0 ? (
+                <div className="col-span-full py-12 text-center text-gray-500">
+                  <p>No devices found on this network.</p>
+                  <p className="text-xs mt-2">Make sure both devices are on the same Wi-Fi.</p>
+                </div>
+              ) : (
+                devices.map((device, i) => (
+                  <motion.div
+                    key={device.id}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.1 }}
+                  >
+                    <CyberCard glow="green" className="p-6 flex flex-col items-center gap-4 group">
+                      <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center relative">
+                        {device.type === 'mobile' ? (
+                          <Smartphone className="w-6 h-6 text-green-500" />
+                        ) : (
+                          <Monitor className="w-6 h-6 text-green-500" />
+                        )}
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#050505] rounded-full" />
+                      </div>
+                      <div className="text-center">
+                        <h3 className="font-bold text-lg">{device.name}</h3>
+                        <p className="text-xs text-gray-500 uppercase tracking-widest">{device.type}</p>
+                      </div>
+                      <Link href={`/link/${groupId}-${device.id.slice(0, 4)}`} className="w-full">
+                        <button className="w-full py-2 bg-green-500/10 hover:bg-green-500/20 text-green-500 rounded-lg text-xs font-bold uppercase tracking-widest transition-all mt-2">
+                          Connect
+                        </button>
+                      </Link>
+                    </CyberCard>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </main>
   );
 }

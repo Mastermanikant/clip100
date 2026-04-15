@@ -1,103 +1,114 @@
 /**
- * Hashes a string using SHA-256 for secure client-side password verification.
+ * SHA-256 hash for password verification.
+ * Ported from backup_frank/src/lib/crypto.ts
  */
 export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
- * Encrypts a plaintext string using AES-256-GCM.
+ * AES-256-GCM encryption using Web Crypto API.
+ * Returns format: ENCRYPTED:<base64 salt>:<base64 iv>:<base64 ciphertext>
  */
-export async function encryptAES256(plaintext: string, password: string): Promise<string> {
+export async function encryptAES256(
+  plaintext: string,
+  password: string
+): Promise<string> {
   const encoder = new TextEncoder();
-  
-  // Hash password to use as key base
-  const passHash = await hashPassword(password);
+
+  // Generate random salt and IV
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+
+  // Derive key from password using PBKDF2
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(passHash),
-    { name: 'PBKDF2' },
+    encoder.encode(password),
+    'PBKDF2',
     false,
-    ['deriveBits', 'deriveKey']
+    ['deriveKey']
   );
-  
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  
+
   const key = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false,
-    ['encrypt', 'decrypt']
+    ['encrypt']
   );
-  
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  
-  const encryptedBuf = await crypto.subtle.encrypt(
+
+  // Encrypt
+  const ciphertext = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     key,
     encoder.encode(plaintext)
   );
-  
-  const encryptedBytes = new Uint8Array(encryptedBuf);
-  // Encode Base64
-  const saltB64 = btoa(String.fromCharCode(...salt));
-  const ivB64 = btoa(String.fromCharCode(...iv));
-  const encryptedB64 = btoa(String.fromCharCode(...encryptedBytes));
-  
-  return `ENCRYPTED:${saltB64}:${ivB64}:${encryptedB64}`;
+
+  // Encode to base64
+  const toBase64 = (buf: ArrayBuffer) =>
+    btoa(Array.from(new Uint8Array(buf)).map(b => String.fromCharCode(b)).join(''));
+
+  return `ENCRYPTED:${toBase64(salt.buffer)}:${toBase64(iv.buffer)}:${toBase64(ciphertext)}`;
 }
 
 /**
- * Decrypts an AES-256-GCM encrypted string.
+ * AES-256-GCM decryption. Input must be in ENCRYPTED:salt:iv:ciphertext format.
+ * Throws if password is wrong or data is corrupted.
  */
-export async function decryptAES256(ciphertext: string, password: string): Promise<string> {
-  if (!ciphertext.startsWith('ENCRYPTED:')) {
-    throw new Error('Invalid ciphertext format');
-  }
-  
-  const parts = ciphertext.split(':');
-  const salt = Uint8Array.from(atob(parts[1]), c => c.charCodeAt(0));
-  const iv = Uint8Array.from(atob(parts[2]), c => c.charCodeAt(0));
-  const data = Uint8Array.from(atob(parts[3]), c => c.charCodeAt(0));
-  
-  const passHash = await hashPassword(password);
+export async function decryptAES256(
+  encrypted: string,
+  password: string
+): Promise<string> {
   const encoder = new TextEncoder();
+  const parts = encrypted.split(':');
+
+  if (parts.length !== 4 || parts[0] !== 'ENCRYPTED') {
+    throw new Error('Invalid encrypted format');
+  }
+
+  // Decode from base64
+  const fromBase64 = (str: string) =>
+    new Uint8Array(
+      atob(str)
+        .split('')
+        .map((c) => c.charCodeAt(0))
+    );
+
+  const salt = fromBase64(parts[1]);
+  const iv = fromBase64(parts[2]);
+  const ciphertext = fromBase64(parts[3]);
+
+  // Derive same key
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(passHash),
-    { name: 'PBKDF2' },
+    encoder.encode(password),
+    'PBKDF2',
     false,
-    ['deriveBits', 'deriveKey']
+    ['deriveKey']
   );
-  
+
   const key = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false,
-    ['encrypt', 'decrypt']
+    ['decrypt']
   );
-  
-  const decryptedBuf = await crypto.subtle.decrypt(
+
+  const decrypted = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv },
     key,
-    data
+    ciphertext
   );
-  
-  return new TextDecoder().decode(decryptedBuf);
+
+  return new TextDecoder().decode(decrypted);
+}
+
+/** Check if a string is in our encrypted format */
+export function isEncrypted(text: string): boolean {
+  return text.startsWith('ENCRYPTED:');
 }

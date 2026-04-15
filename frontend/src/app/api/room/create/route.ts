@@ -1,37 +1,65 @@
 import redis from '@/lib/redis';
 import { NextResponse } from 'next/server';
-import { generateId, ROOM_TTL_SECONDS } from '@/lib/utils'; // wait, generateId is in utils, ROOM_TTL_SECONDS is in constants
 import { hashPassword } from '@/lib/crypto';
-import { ROOM_TTL_SECONDS as TTL } from '@/lib/constants';
+import { ROOM_TTL_SECONDS } from '@/lib/constants';
+import { generateId, isValidRoomId } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const { vanityName, password, isPublic, initialMode, adminId, ecosystem = 'link' } = await req.json();
-    
-    // Use vanity or random 6 char
-    const roomId = (vanityName || Math.random().toString(36).substring(2, 8)).toLowerCase();
-    
-    let passwordHash = '';
-    if (password) {
-       passwordHash = await hashPassword(password);
+    const body = await req.json();
+    const {
+      vanityName,
+      password,
+      isPublic = true,
+      ecosystem = 'link',
+    } = body;
+
+    const roomId = vanityName || generateId();
+
+    // Validate room ID
+    if (!isValidRoomId(roomId)) {
+      return NextResponse.json(
+        { success: false, message: 'Room name must be 3-20 alphanumeric characters or hyphens' },
+        { status: 400 }
+      );
     }
+
+    // Check if room already exists
+    const exists = await redis.exists(`${ecosystem}:${roomId}`);
+    if (exists) {
+      return NextResponse.json(
+        { success: false, message: 'Room name is already taken' },
+        { status: 409 }
+      );
+    }
+
+    // Hash password server-side if provided
+    const passwordHash = password ? await hashPassword(password) : null;
 
     const roomData = {
       roomId,
       passwordHash,
-      isPublic: isPublic !== false && !password,
-      initialMode,
-      adminId,
+      isPublic: !password,
+      ecosystem,
       createdAt: Date.now(),
-      ecosystem 
+      notebook: '',
     };
 
-    await redis.set(`${ecosystem}:${roomId}`, JSON.stringify(roomData), 'EX', TTL);
+    await redis.set(
+      `${ecosystem}:${roomId}`,
+      JSON.stringify(roomData),
+      'EX',
+      ROOM_TTL_SECONDS
+    );
 
     return NextResponse.json({ success: true, roomId, ecosystem });
   } catch (error) {
-    return NextResponse.json({ success: false, message: 'Failed to create room' }, { status: 500 });
+    console.error('[Room Create]', error);
+    return NextResponse.json(
+      { success: false, message: 'Failed to create room' },
+      { status: 500 }
+    );
   }
 }

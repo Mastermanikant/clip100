@@ -1,23 +1,29 @@
 'use client';
-import { useCallback } from 'react';
-import { encryptAES256, decryptAES256, hashPassword } from '@/lib/crypto';
+
+import { useState } from 'react';
+import { encryptAES256, decryptAES256, isEncrypted } from '@/lib/crypto';
+import { useAppStore } from '@/store/useAppStore';
 
 export function useEncryption() {
-  const isEncrypted = useCallback((text: string) => {
-    return text.startsWith('ENCRYPTED:');
-  }, []);
+  const { roomCode } = useAppStore();
 
-  const encrypt = useCallback(async (plaintext: string, password: string) => {
-    return await encryptAES256(plaintext, password);
-  }, []);
-
-  const decrypt = useCallback(async (ciphertext: string, password: string) => {
+  const encrypt = async (text: string) => {
+    if (!roomCode) return text;
     try {
-      return await decryptAES256(ciphertext, password);
-    } catch (err) {
-      throw new Error('Failed to decrypt. Incorrect password?');
+      return await encryptAES256(text, roomCode);
+    } catch {
+      return text;
     }
-  }, []);
+  };
 
-  return { encrypt, decrypt, hashPassword, isEncrypted };
+  const decrypt = async (text: string) => {
+    if (!isEncrypted(text) || !roomCode) return text;
+    try {
+      return await decryptAES256(text, roomCode);
+    } catch {
+      return '*** Encrypted Message ***';
+    }
+  };
+
+  return { encrypt, decrypt };
 }

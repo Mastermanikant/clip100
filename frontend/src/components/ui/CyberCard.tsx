@@ -1,35 +1,40 @@
 'use client';
-import React, { ReactNode } from 'react';
-import { motion, HTMLMotionProps } from 'framer-motion';
 
-interface CyberCardProps extends Omit<HTMLMotionProps<'div'>, 'className'> {
-  glow?: 'blue' | 'purple' | 'green' | 'red' | 'amber' | 'none';
+import { motion } from 'framer-motion';
+
+interface CyberCardProps {
+  glow?: 'blue' | 'purple' | 'green' | 'none';
   hover?: boolean;
-  children: ReactNode;
+  children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
 }
 
-export function CyberCard({ 
-  glow = 'none', 
-  hover = false, 
-  children, 
-  className = '',
-  ...props
-}: CyberCardProps) {
-  const glowClasses = {
-    blue: 'hover:border-blue-500/30 hover:shadow-[0_0_30px_rgba(59,130,246,0.1)]',
-    purple: 'hover:border-purple-500/30 hover:shadow-[0_0_30px_rgba(139,92,246,0.1)]',
-    green: 'hover:border-green-500/30 hover:shadow-[0_0_30px_rgba(34,197,94,0.1)]',
-    red: 'hover:border-red-500/30 hover:shadow-[0_0_30px_rgba(239,68,68,0.1)]',
-    amber: 'hover:border-amber-500/30 hover:shadow-[0_0_30px_rgba(245,158,11,0.1)]',
-    none: ''
-  };
+const glowStyles = {
+  blue: 'hover:shadow-[0_0_50px_rgba(59,130,246,0.1)] hover:border-blue-500/20',
+  purple: 'hover:shadow-[0_0_50px_rgba(139,92,246,0.1)] hover:border-purple-500/20',
+  green: 'hover:shadow-[0_0_50px_rgba(34,197,94,0.1)] hover:border-green-500/20',
+  none: '',
+};
 
+export default function CyberCard({
+  glow = 'none',
+  hover = true,
+  children,
+  className = '',
+  onClick,
+}: CyberCardProps) {
   return (
     <motion.div
-      whileHover={hover ? { scale: 1.02 } : {}}
-      className={`glass border border-white/5 rounded-[2.5rem] p-6 transition-all duration-300 ${glowClasses[glow]} ${className}`}
-      {...props}
+      whileHover={hover ? { scale: 1.01 } : undefined}
+      onClick={onClick}
+      className={`
+        bg-white/[0.02] border border-white/[0.05] rounded-card
+        backdrop-blur-2xl transition-all duration-300
+        ${hover ? 'cursor-pointer' : ''}
+        ${glowStyles[glow]}
+        ${className}
+      `}
     >
       {children}
     </motion.div>

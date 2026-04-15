@@ -1,104 +1,103 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Book, Lock } from 'lucide-react';
-import { useFrankRTC } from '@/hooks/useFrankRTC';
-import { RoomHeader } from '@/components/RoomHeader';
-import { MessageBubble } from '@/components/MessageBubble';
+import { Save, AlertCircle, Loader2 } from 'lucide-react';
+import RoomHeader from '@/components/RoomHeader';
 
-export default function FrankNotesRoom({ params }: { params: { roomId: string } }) {
-  const roomId = params.roomId.toUpperCase();
-  const [inputMsg, setInputMsg] = useState('');
-  const [notes, setNotes] = useState<any[]>([]);
-  const { isConnected, peerCount, messages, sendText } = useFrankRTC({ roomId, ecosystem: 'notes' });
+export default function NotesRoomPage({ params }: { params: { roomId: string } }) {
+  const { roomId } = params;
+  const [content, setContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  // Load existing notes from backend on mount
+  // Load initial content
   useEffect(() => {
-    fetch(`/api/room/notebook?roomId=${roomId}&ecosystem=notes`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.notebook) {
-           try {
-              setNotes(JSON.parse(data.notebook));
-           } catch(e) {}
+    const fetchNotebook = async () => {
+      try {
+        const res = await fetch(`/api/notebook?roomId=${roomId}`);
+        const data = await res.json();
+        if (data.success) {
+          setContent(data.notebook || '');
         }
-      });
+      } catch {
+        setError('Failed to load notebook');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchNotebook();
   }, [roomId]);
 
-  // Aggregate RT messages and initial notes
-  const allNotes = [...notes, ...messages];
-
-  // Auto save to DB when new messages are added locally
+  // Auto-save logic
   useEffect(() => {
-     if (allNotes.length > 0) {
-        fetch('/api/room/notebook', {
-           method: 'PATCH',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ roomId, ecosystem: 'notes', notebookText: JSON.stringify(allNotes) })
+    if (loading) return;
+    
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSaving(true);
+      try {
+        await fetch('/api/notebook', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId, notebookText: content }),
         });
-     }
-  }, [messages.length, roomId]); // only sync when new message comes in
+        setLastSaved(new Date());
+      } catch {
+        setError('Failed to save');
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
 
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputMsg.trim()) return;
-    sendText(inputMsg);
-    setInputMsg('');
-  };
+    return () => clearTimeout(delayDebounceFn);
+  }, [content, roomId, loading]);
 
   return (
-    <main className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden bg-black">
-      <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
-        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vw] h-[60vw] rounded-full blur-[150px] opacity-[0.03] transition-colors duration-1000 bg-purple-600`} />
-      </div>
-
+    <main className="min-h-screen bg-[#050505] text-white flex justify-center items-center p-0 md:p-8 font-sans">
       <motion.div 
         layout
-        className="max-w-4xl w-full h-[90vh] bg-white/[0.02] border border-white/5 rounded-3xl backdrop-blur-2xl shadow-2xl flex flex-col overflow-hidden relative z-10"
+        className="w-full h-[100dvh] md:max-w-4xl md:h-[85vh] bg-white/[0.02] md:border border-white/5 md:rounded-3xl backdrop-blur-2xl shadow-2xl flex flex-col overflow-hidden relative z-10"
       >
         <RoomHeader 
-           title="FrankNotes" 
-           roomId={roomId} 
-           isConnected={isConnected} 
-           peerCount={peerCount}
-           accentColor="text-purple-500" 
+            title="FrankNotes" 
+            roomId={roomId} 
+            isConnected={true} 
+            peerCount={0} 
+            accentColor="purple"
         />
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide flex flex-col">
-          {allNotes.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-gray-600 gap-4">
-              <Book className="w-16 h-16 text-purple-500/30" />
-              <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Empty Notebook</p>
+        <div className="flex-1 flex flex-col relative">
+          <div className="px-6 py-2 border-b border-white/5 flex items-center justify-between bg-black/40">
+            <div className="flex items-center gap-2">
+              {isSaving ? (
+                <div className="flex items-center gap-1.5 text-amber-500 text-xs font-bold uppercase tracking-widest">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Saving...
+                </div>
+              ) : error ? (
+                <div className="flex items-center gap-1.5 text-red-500 text-xs font-bold uppercase tracking-widest">
+                  <AlertCircle className="w-3 h-3" /> Error
+                </div>
+              ) : lastSaved ? (
+                <div className="flex items-center gap-1.5 text-gray-500 text-xs font-bold uppercase tracking-widest">
+                  <Save className="w-3 h-3" /> Saved {lastSaved.toLocaleTimeString()}
+                </div>
+              ) : null}
             </div>
-          )}
-          {allNotes.map((msg, i) => (
-            <MessageBubble 
-              key={msg.id || i}
-              content={msg.content}
-              sender={msg.sender}
-              timestamp={msg.timestamp}
-            />
-          ))}
-        </div>
+            <div className="text-xs text-gray-600 font-mono">
+              {content.length} / 100,000 chars
+            </div>
+          </div>
 
-        <div className="p-4 border-t border-white/5 bg-black/40 backdrop-blur-md shrink-0">
-          <form onSubmit={handleSend} className="flex gap-2">
-            <input 
-              type="text" 
-              value={inputMsg}
-              onChange={(e) => setInputMsg(e.target.value)}
-              placeholder="Jot down a permanent note..."
-              className="flex-1 bg-white/5 border border-purple-500/20 rounded-xl px-4 py-4 focus:outline-none focus:border-purple-500 text-sm"
-              autoFocus
-            />
-            <button 
-              type="submit" 
-              disabled={!inputMsg.trim()}
-              className="px-6 bg-purple-600 hover:bg-purple-500 disabled:bg-white/5 disabled:text-gray-600 text-white rounded-xl transition-colors"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </form>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            disabled={loading}
+            placeholder={loading ? "Loading..." : "Start typing..."}
+            className="flex-1 w-full bg-transparent resize-none outline-none p-6 text-sm leading-relaxed text-gray-300 placeholder:text-gray-700 font-mono"
+            spellCheck="false"
+          />
         </div>
       </motion.div>
     </main>

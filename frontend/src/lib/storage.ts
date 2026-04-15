@@ -24,7 +24,7 @@ export class FrankDropDB extends Dexie {
     super('FrankDropDB');
     this.version(1).stores({
       chunks: '++id, fileId, chunkIndex',
-      meta: 'fileId'
+      meta: 'fileId',
     });
   }
 
@@ -62,9 +62,8 @@ export class FrankDropDB extends Dexie {
       throw new Error(`Missing chunks: ${chunks.length}/${meta.totalChunks}`);
     }
 
-    const blob = new Blob(chunks.map(c => c.data), { type: meta.mimeType });
+    const blob = new Blob(chunks.map((c) => c.data), { type: meta.mimeType });
     const url = URL.createObjectURL(blob);
-    
     return { url, fileName: meta.fileName };
   }
 
@@ -74,4 +73,4 @@ export class FrankDropDB extends Dexie {
   }
 }
 
-export const db = typeof window !== 'undefined' ? new FrankDropDB() : null;
+export const db = new FrankDropDB();

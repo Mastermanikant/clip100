@@ -1,17 +1,22 @@
 import { create } from 'zustand';
+import type { Ecosystem } from '@/lib/constants';
 
 interface AppState {
+  // Room state
   roomId: string | null;
   roomCode: string | null;
   isLocalOnly: boolean;
-  ecosystem: 'link' | 'nearby' | 'notes' | null;
-  
+  ecosystem: Ecosystem | null;
+
+  // Connection state
   isConnected: boolean;
   peerCount: number;
-  
+
+  // UI state
   activeTab: 'text' | 'file' | 'password';
-  
-  setRoom: (roomId: string, ecosystem: 'link' | 'nearby' | 'notes') => void;
+
+  // Actions
+  setRoom: (roomId: string, ecosystem: Ecosystem) => void;
   resetRoom: () => void;
   toggleLocalOnly: () => void;
   setConnected: (connected: boolean) => void;
@@ -24,16 +29,23 @@ export const useAppStore = create<AppState>((set) => ({
   roomCode: null,
   isLocalOnly: false,
   ecosystem: null,
-  
   isConnected: false,
   peerCount: 0,
-  
   activeTab: 'text',
-  
-  setRoom: (roomId, ecosystem) => set({ roomId, roomCode: roomId, ecosystem }),
-  resetRoom: () => set({ roomId: null, roomCode: null, isLocalOnly: false, ecosystem: null, isConnected: false, peerCount: 0 }),
-  toggleLocalOnly: () => set((state) => ({ isLocalOnly: !state.isLocalOnly })),
+
+  setRoom: (roomId, ecosystem) => set({ roomId, ecosystem }),
+  resetRoom: () =>
+    set({
+      roomId: null,
+      roomCode: null,
+      isLocalOnly: false,
+      ecosystem: null,
+      isConnected: false,
+      peerCount: 0,
+      activeTab: 'text',
+    }),
+  toggleLocalOnly: () => set((s) => ({ isLocalOnly: !s.isLocalOnly })),
   setConnected: (connected) => set({ isConnected: connected }),
   setPeerCount: (count) => set({ peerCount: count }),
-  setActiveTab: (tab) => set({ activeTab: tab })
+  setActiveTab: (tab) => set({ activeTab: tab }),
 }));
