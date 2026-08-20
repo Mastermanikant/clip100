@@ -1,0 +1,24 @@
+# ClipSync (clipboard.frankbase.com) - Full Reference & Knowledge Architecture
+
+## Overview
+ClipSync is an ultra-fast, zero-friction, ephemeral real-time text synchronization tool engineered by Master Manikant Yadav under the FrankBase ecosystem. It allows immediate bidirectional sharing of plain text, long URLs, OTPs, API keys, JSON payloads, and code snippets between smartphones, tablets, laptops, and desktop computers.
+
+## System Architecture
+- **Frontend:** React 18, Vite 5, Tailwind CSS with semantic CSS variables, Lucide React icons, qrcode.react SVG generator.
+- **Backend:** Node.js, Express, Socket.io WebSocket engine with in-memory room Map storage.
+- **Transport Security:** Strict HTTPS/WSS with TLS 1.3 encryption.
+- **Privacy Model:** Volatile RAM-only buffer. All room memory is freed via garbage collection when peers disconnect or manual wipe is triggered.
+
+## Key Routes & Functionality
+- `/` : Landing page with instant room creation, room code joiner, 4-step user guide, use cases, shortcuts cheatsheet, and FAQ accordion.
+- `/room/:roomId` & `/r/:roomId` : Real-time live clipboard room with instant bi-directional typing, live device counter, phone QR modal, copy-to-clipboard, and clear tools.
+- `/about` : Authoritative mission statement, architectural overview, and Master Manikant Yadav founder attribution.
+- `/contact` : Support desk, bug reporting, and official inquiry routing (support@frankbase.com).
+- `/privacy` : Zero-log ephemeral privacy policy detailing RAM storage, TLS 1.3 encryption, and absence of database persistence.
+- `/terms` : Terms of service and acceptable use guidelines.
+- `/blog` : High-density knowledge hub containing guides on cross-device workflows, developer utilities, and ephemeral security.
+
+## Official Contact Desks
+- **Support Desk:** support@frankbase.com
+- **Founder & Executive Desk:** connect@mastermanikant.com
+- **Ecosystem Portals:** frankbase.com | mastermanikant.com

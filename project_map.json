@@ -1,0 +1,58 @@
+{
+  "$schema_version": "2.0.0",
+  "project_identity": {
+    "project_id": "PRJ-15-CLIPBOARD-FRANKBASE",
+    "project_name": "15_clipboard.frankbase.com",
+    "domain": "clipboard.frankbase.com",
+    "canonical_url": "https://clipboard.frankbase.com",
+    "canonical_path": "D:\\01_Websites_and_Content\\MMY_Website_Project\\15_clipboard.frankbase.com",
+    "tier_level": 3,
+    "status": "ACTIVE_PRODUCTION_READY",
+    "purpose": "Instant real-time ephemeral cross-device clipboard & text sharing web application (CopyPaste.me enhanced alternative).",
+    "founder": "Master Manikant Yadav (मास्टर मणिकान्त यादव)",
+    "support_email": "support@frankbase.com",
+    "founder_email": "connect@mastermanikant.com",
+    "inquiries_webhook_target": "https://mmcentral.pages.dev/api/submit-lead"
+  },
+  "modules_and_folder_map": {
+    "client": {
+      "path": "D:\\01_Websites_and_Content\\MMY_Website_Project\\15_clipboard.frankbase.com\\client",
+      "description": "React 18 + Vite 5 + Tailwind CSS SPA with class-based dual-theme engine and WebSockets client.",
+      "sub_sections": [
+        "src/App.jsx (Routing & ThemeProvider wrapper)",
+        "src/context/ThemeContext.jsx (Persistent Light/Dark mode state)",
+        "src/components/Navbar.jsx (Responsive header with theme toggle and navigation)",
+        "src/components/Footer.jsx (Ecosystem footer with legal suite, founder attribution, and official domain emails)",
+        "src/pages/Landing.jsx (Hero room generator, 4-step user guide, use cases, shortcuts, and FAQ accordion)",
+        "src/pages/Room.jsx (Real-time live clipboard room with QR code pairing, active user counter, and one-touch copy)",
+        "src/pages/About.jsx (Authoritative bilingual brand story and privacy-first architecture)",
+        "src/pages/Contact.jsx (Support desk, bug bounty form, and official inquiry routing)",
+        "src/pages/Privacy.jsx (Zero-log RAM ephemeral memory privacy policy)",
+        "src/pages/Terms.jsx (Terms of service and acceptable use policy)",
+        "src/pages/BlogList.jsx (SEO blog directory with search and category filtering)",
+        "src/pages/BlogPost.jsx (High-density article reader with CTA blocks)",
+        "src/data/blogData.js (Curated educational & promotional articles)",
+        "public/llms.txt & public/llms-full.txt (Standardized AI discovery references)"
+      ]
+    },
+    "server": {
+      "path": "D:\\01_Websites_and_Content\\MMY_Website_Project\\15_clipboard.frankbase.com\\server",
+      "description": "Node.js + Express + Socket.io backend providing real-time room synchronization with in-memory store and automatic room cleanup.",
+      "sub_sections": [
+        "index.js (Express & Socket.io server with CORS and room management events)"
+      ]
+    },
+    "clipboard_deploy": {
+      "path": "D:\\01_Websites_and_Content\\MMY_Website_Project\\15_clipboard.frankbase.com\\clipboard_deploy",
+      "description": "Ready-to-deploy backend and frontend bundles and deployment scripts."
+    }
+  },
+  "provenance_record": {
+    "consolidated_from": [
+      "D:\\01_Websites_and_Content\\MMY_Website_Project\\15_clipboard.frankbase.com"
+    ],
+    "total_files_migrated": 58,
+    "last_sync_timestamp": "2026-08-21 04:28:00",
+    "integrity_status": "100% PRODUCTION BUILD VERIFIED"
+  }
+}

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClipSync - Instant Real-Time Clipboard & Text Sync | FrankBase</title>
+  <meta name="description" content="Instant real-time ephemeral text sharing and clipboard synchronization across mobile, tablet, and PC. No login required. Under 50ms latency by FrankBase." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://clipboard.frankbase.com" />
+  
+  <!-- AI Manifest Reference -->
+  <link rel="help" type="text/plain" href="/llms.txt" />
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Anti-FOUC Theme Initialization Script -->
+  <script>
+    (function() {
+      try {
+        var savedTheme = localStorage.getItem('clipsync_theme');
+        var theme = savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+
+<body class="antialiased">
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>
