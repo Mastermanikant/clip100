@@ -11,7 +11,8 @@ const SmartRouter = () => {
         return <Navigate to="/" replace />;
     }
 
-    return <Room roomType="custom_link" />;
+    // Top-level direct path (e.g. /mastermanikant) is the Personal Cloud Diary / Permanent Room
+    return <Room roomType="diary" />;
 };
 
 export default SmartRouter;

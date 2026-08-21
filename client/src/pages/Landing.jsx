@@ -76,7 +76,7 @@ const Landing = () => {
             toast.error('Username must be at least 3 characters');
             return;
         }
-        navigate(`/u/${cleaned}`);
+        navigate(`/${cleaned}`);
     };
 
     const toggleFaq = (index) => {
@@ -282,7 +282,7 @@ const Landing = () => {
                                     </label>
                                     <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden focus-within:border-primary transition">
                                         <span className="px-3 py-3 bg-slate-100 dark:bg-slate-800/80 text-xs font-mono text-slate-500 border-r border-slate-200 dark:border-slate-700 select-none">
-                                            clip.frankbase.com/u/
+                                            clip.frankbase.com/
                                         </span>
                                         <input
                                             type="text"
@@ -295,7 +295,7 @@ const Landing = () => {
                                         />
                                     </div>
                                     <p className="text-[11px] text-slate-400 mt-1">
-                                        Access your saved clipboard notes from any cyber cafe or device with your PIN.
+                                        Access your personal cloud notes directly at <code>clip.frankbase.com/{diaryUser || 'yourname'}</code> from any device.
                                     </p>
                                 </div>
 
