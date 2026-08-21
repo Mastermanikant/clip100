@@ -1,0 +1,152 @@
+{
+  "$schema_version": "2.0.0",
+  "project_meta": {
+    "project_id": "PRJ-15-CLIPBOARD-FRANKBASE",
+    "product_name": "ClipSync",
+    "canonical_domain": "clipboard.frankbase.com",
+    "short_alias_domain": "clip.frankbase.com",
+    "cloudflare_pages_url": "https://clipboard-frankbase.pages.dev",
+    "github_repo": "https://github.com/Mastermanikant/clip100",
+    "parent_ecosystem": "FrankBase Digital Network",
+    "founder": "Master Manikant Yadav (मास्टर मणिकान्त यादव)",
+    "official_contact": "support@frankbase.com",
+    "founder_contact": "connect@mastermanikant.com",
+    "last_updated": "2026-08-21T07:50:00+05:30"
+  },
+  "completed_features": [
+    {
+      "feature_id": "FEAT-01-LIVE-DOMAIN-PAGES",
+      "title": "Live Production Edge Deployment",
+      "status": "COMPLETED",
+      "endpoint": "https://clipboard.frankbase.com",
+      "description": "Global deployment on Cloudflare Pages with SSL/TLS 1.3 encryption and SPA _redirects."
+    },
+    {
+      "feature_id": "FEAT-02-3TIER-ROUTING",
+      "title": "3-Tier Zero-Collision URL Routing",
+      "status": "COMPLETED",
+      "paths": {
+        "personal_diary": "/:username (e.g. /mastermanikant)",
+        "30day_custom_link": "/link/:customSlug (e.g. /link/mani100)",
+        "ephemeral_quick_room": "/room/:roomId (e.g. /room/K8F92A)"
+      }
+    },
+    {
+      "feature_id": "FEAT-03-BLOCK-MESSAGE-FEED",
+      "title": "Device-Tagged Message Feed (Zero Overwrite)",
+      "status": "COMPLETED",
+      "description": "Auto device detection (Laptop/Phone/Mac/Linux), independent message blocks with 1-click copy, inline edit, delete, and download."
+    },
+    {
+      "feature_id": "FEAT-04-SCREENSHOT-PASTE-10MB",
+      "title": "Direct Clipboard Screenshot Paste & Mobile Attachment",
+      "status": "COMPLETED",
+      "description": "Ctrl+V direct paste on PC canvas + 📎 attachment button for mobile gallery + desktop drag-and-drop up to 10MB."
+    },
+    {
+      "feature_id": "FEAT-05-D1-DATABASE-SYNC",
+      "title": "Cloudflare D1 Global SQLite Database (clipsync-db)",
+      "status": "COMPLETED",
+      "database_id": "a684a06d-57e0-4d74-bed4-1b302390982b",
+      "description": "Serverless edge persistence with 0.79ms SQL execution and in-memory dual fallback."
+    },
+    {
+      "feature_id": "FEAT-06-PIN-LOCK-SECURITY",
+      "title": "4-Digit PIN Lock Protection",
+      "status": "COMPLETED",
+      "description": "Optional 4-digit PIN protection for rooms and personal diaries with localStorage persistence."
+    },
+    {
+      "feature_id": "FEAT-07-COMMUNITY-AND-NEWSLETTER",
+      "title": "FrankBase WhatsApp Channel & Multi-Topic Newsletter",
+      "status": "COMPLETED",
+      "webhook_target": "https://mmcentral.pages.dev/api/submit-lead",
+      "description": "WhatsApp channel CTA + 3-category checkbox newsletter integration connected to Central Command."
+    },
+    {
+      "feature_id": "FEAT-08-THEME-AND-LEGAL-SUITE",
+      "title": "Dual Day/Night Theme (WCAG 2.1 AA) & SEO Suite",
+      "status": "COMPLETED",
+      "pages": ["/", "/about", "/contact", "/privacy", "/terms", "/blog", "/blog/:slug", "/llms.txt", "/llms-full.txt"]
+    }
+  ],
+  "pending_and_upcoming_features": [
+    {
+      "task_id": "PEND-01-AUTH-GOOGLE-AND-MAGIC-LINK",
+      "title": "1-Click Google OAuth & Email Magic Link",
+      "priority": "HIGH",
+      "status": "QUEUED",
+      "scope": "Permanent verified username ownership, password recovery via email OTP, and multi-device cloud profile."
+    },
+    {
+      "task_id": "PEND-02-REAL-FEEDBACK-AND-RATING-WIDGET",
+      "title": "Real User Feedback & Rating Widget (Anti-Spam E-E-A-T)",
+      "priority": "HIGH",
+      "status": "QUEUED",
+      "features": [
+        "100% authentic ratings widget ('Was this helpful? ⭐️⭐️⭐️⭐️⭐️')",
+        "Zero fake badges/counters (100% transparent brand rule 14 & 15)",
+        "Spam protection via Cloudflare Turnstile (invisible bot challenge without captchas)",
+        "IP Rate Limiting (max 1 review per device/IP every 24 hours)",
+        "Live sync with Central CRM & G2 / ProductHunt verified badge integration"
+      ]
+    },
+    {
+      "task_id": "PEND-03-BURN-AFTER-READING-MODE",
+      "title": "One-Time 'Burn After Reading' Secret Note Mode (CopyPaste.me)",
+      "priority": "MEDIUM",
+      "status": "QUEUED",
+      "description": "Single-view self-destruct note for sharing passwords, API keys, and bank OTPs that vanishes from D1 immediately upon first open."
+    },
+    {
+      "task_id": "PEND-04-WEBCRYPTO-E2EE-ZERO-KNOWLEDGE",
+      "title": "Client-Side WebCrypto AES-GCM-256 Zero-Knowledge Encryption",
+      "priority": "MEDIUM",
+      "status": "QUEUED",
+      "description": "Hardware-accelerated client-side encryption where PIN derives AES-256 key so server/admin stores only undecryptable ciphertext."
+    },
+    {
+      "task_id": "PEND-05-PWA-INSTALL-PROMPT-UI",
+      "title": "Progressive Web App (PWA) Install Modal & Button",
+      "priority": "MEDIUM",
+      "status": "QUEUED",
+      "description": "Add in-app 'Install App on Phone / Desktop' button hooked to window.beforeinstallprompt event."
+    },
+    {
+      "task_id": "PEND-06-FRANKDROP-P2P-HANDOFF",
+      "title": "Large File (>10MB to 10GB) P2P FrankDrop Handoff Link",
+      "priority": "LOW",
+      "status": "QUEUED",
+      "description": "Header navigation link routing heavy video/zip transfers to FrankDrop (WebRTC P2P direct stream)."
+    }
+  ],
+  "freemium_and_monetization_matrix": {
+    "free_tier": {
+      "price": "₹0 (Lifetime Free & 100% Ad-Free)",
+      "text_sync": "Unlimited real-time sync across unlimited devices",
+      "custom_links": "Unlimited 30-day active memorable links (/link/name)",
+      "ephemeral_rooms": "Unlimited 6-character random quick rooms",
+      "screenshot_limit": "Up to 10MB per image/clip",
+      "history_limit": "100 clips per room feed",
+      "security": "Optional 4-digit PIN lock & TLS 1.3 encryption"
+    },
+    "pro_pass_tier": {
+      "target_price": "₹99 One-Time Lifetime Pass (or ₹49/year)",
+      "features": [
+        "Permanent Reserved Vanity Username (never expires)",
+        "100MB Cloud Vault per file (Cloudflare R2 storage)",
+        "Unlimited Clip History (No 100-clip cap)",
+        "1-Click Export Diary to Markdown / PDF / JSON",
+        "Multi-Diary Folders (Work, Personal, Code Vault)",
+        "Priority Support Desk (support@frankbase.com)"
+      ]
+    }
+  },
+  "security_and_anti_spam_architecture": {
+    "sql_injection": "100% Immune via Parameterized Prepared Statements in Cloudflare D1",
+    "xss_prevention": "100% React Automatic Output Encoding (Zero dangerouslySetInnerHTML)",
+    "ddos_and_bot_mitigation": "Cloudflare Global WAF + Turnstile Invisible Challenge",
+    "rate_limiting": "IP Rate Limiting on review submissions and room creation (10 rooms/min)",
+    "zero_log_ephemeral_policy": "Guest ephemeral rooms cleared on tab close / 24h idle GC"
+  }
+}
