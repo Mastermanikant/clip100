@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import EcosystemNewsletter from '../components/EcosystemNewsletter';
 import {
     ArrowRight,
     Zap,
@@ -395,6 +396,11 @@ const Landing = () => {
                         ))}
                     </div>
                 </div>
+            </section>
+
+            {/* Central Ecosystem Newsletter & WhatsApp Channels */}
+            <section className="px-4 sm:px-6 lg:px-8">
+                <EcosystemNewsletter />
             </section>
 
             <Footer />
