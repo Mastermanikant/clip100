@@ -3,6 +3,24 @@ import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
 
+// Helper: Safely decode Google JWT token
+const parseJwt = (token) => {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split('')
+                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+        );
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        console.error("JWT Parse Error:", e);
+        return null;
+    }
+};
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(() => {
         const saved = localStorage.getItem('clipsync_auth_user');
@@ -20,7 +38,7 @@ export const AuthProvider = ({ children }) => {
     }, [user]);
 
     // Fast Central Backend Sign-In
-    const triggerGoogleSignIn = async (customEmail = 'connect@mastermanikant.com', fullName = 'Master Manikant') => {
+    const triggerGoogleSignIn = async (customEmail = 'connect@mastermanikant.com', fullName = 'Master Manikant', customAvatar = null) => {
         setIsLoading(true);
         try {
             const res = await fetch('/api/auth', {
@@ -30,7 +48,8 @@ export const AuthProvider = ({ children }) => {
                     action: 'signin',
                     email: customEmail,
                     fullName: fullName,
-                    username: customEmail.includes('mastermanikant') ? 'mastermanikant' : customEmail.split('@')[0]
+                    avatarUrl: customAvatar,
+                    username: customEmail.includes('mastermanikant') ? 'mastermanikant' : customEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '')
                 })
             });
 
@@ -57,11 +76,11 @@ export const AuthProvider = ({ children }) => {
             // Local fallback
             const fallbackProfile = {
                 uid: `FB-100892`,
-                name: fullName || 'Master Manikant',
+                name: fullName || 'User',
                 email: customEmail,
-                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName || 'User')}&background=4f46e5&color=fff`,
+                avatar: customAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName || 'User')}&background=4f46e5&color=fff`,
                 tier: 'FREE_LAUNCH',
-                claimedUsername: customEmail.includes('mastermanikant') ? 'mastermanikant' : customEmail.split('@')[0],
+                claimedUsername: customEmail.includes('mastermanikant') ? 'mastermanikant' : customEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, ''),
                 verified: true,
                 authProvider: 'google',
                 createdAt: Date.now()
@@ -72,6 +91,16 @@ export const AuthProvider = ({ children }) => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // Handle Official Native Google Identity Services Credential Response
+    const handleGoogleCredentialResponse = async (credential) => {
+        const payload = parseJwt(credential);
+        if (!payload || !payload.email) {
+            toast.error('Google Sign-In failed. Please try again.');
+            return;
+        }
+        await triggerGoogleSignIn(payload.email, payload.name, payload.picture);
     };
 
     // Custom Email Sign-In
@@ -92,6 +121,7 @@ export const AuthProvider = ({ children }) => {
                 showAuthModal,
                 setShowAuthModal,
                 triggerGoogleSignIn,
+                handleGoogleCredentialResponse,
                 signInWithEmail,
                 logout,
             }}
