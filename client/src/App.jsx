@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './context/ThemeContext';
 import Landing from './pages/Landing';
 import Room from './pages/Room';
+import SmartRouter from './pages/SmartRouter';
 import About from './pages/About';
 import Contact from './pages/Contact';
 import Privacy from './pages/Privacy';
@@ -31,14 +32,28 @@ function App() {
                     />
                     <Routes>
                         <Route path="/" element={<Landing />} />
-                        <Route path="/room/:roomId" element={<Room />} />
-                        <Route path="/r/:roomId" element={<Room />} />
+                        
+                        {/* Ephemeral Quick Rooms */}
+                        <Route path="/room/:roomId" element={<Room roomType="ephemeral" />} />
+                        <Route path="/r/:roomId" element={<Room roomType="ephemeral" />} />
+                        
+                        {/* 30-Day Custom Links */}
+                        <Route path="/link/:customSlug" element={<Room roomType="custom_link" />} />
+                        <Route path="/l/:customSlug" element={<Room roomType="custom_link" />} />
+                        
+                        {/* Permanent User Accounts / Cloud Diary */}
+                        <Route path="/u/:username" element={<Room roomType="diary" />} />
+
+                        {/* Brand & Ecosystem Suite */}
                         <Route path="/about" element={<About />} />
                         <Route path="/contact" element={<Contact />} />
                         <Route path="/privacy" element={<Privacy />} />
                         <Route path="/terms" element={<Terms />} />
                         <Route path="/blog" element={<BlogList />} />
                         <Route path="/blog/:slug" element={<BlogPost />} />
+
+                        {/* Top-level custom vanity path fallback (e.g. /mani100) */}
+                        <Route path="/:username" element={<SmartRouter />} />
                     </Routes>
                 </div>
             </BrowserRouter>
