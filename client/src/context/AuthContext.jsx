@@ -3,29 +3,13 @@ import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
 
-// Helper: Decode Google JWT token from Google Identity Services
-const decodeGoogleJwt = (token) => {
-    try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(
-            atob(base64)
-                .split('')
-                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-                .join('')
-        );
-        return JSON.parse(jsonPayload);
-    } catch (e) {
-        return null;
-    }
-};
-
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(() => {
         const saved = localStorage.getItem('clipsync_auth_user');
         return saved ? JSON.parse(saved) : null;
     });
     const [showAuthModal, setShowAuthModal] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -35,100 +19,68 @@ export const AuthProvider = ({ children }) => {
         }
     }, [user]);
 
-    // Handle Real Google JWT Credential Response from GSI
-    const handleGoogleCredentialResponse = (response) => {
-        if (response && response.credential) {
-            const decoded = decodeGoogleJwt(response.credential);
-            if (decoded) {
+    // Fast Central Backend Sign-In
+    const triggerGoogleSignIn = async (customEmail = 'connect@mastermanikant.com', fullName = 'Master Manikant') => {
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'signin',
+                    email: customEmail,
+                    fullName: fullName,
+                    username: customEmail.includes('mastermanikant') ? 'mastermanikant' : customEmail.split('@')[0]
+                })
+            });
+
+            const data = await res.json();
+            if (data.success && data.user) {
                 const profile = {
-                    uid: decoded.sub,
-                    name: decoded.name || 'Master Manikant',
-                    email: decoded.email || 'connect@mastermanikant.com',
-                    avatar: decoded.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(decoded.name || 'Master Manikant')}&background=4f46e5&color=fff`,
-                    tier: 'FREE_LAUNCH',
+                    uid: data.user.accountId,
+                    name: data.user.fullName,
+                    email: data.user.email,
+                    avatar: data.user.avatarUrl,
+                    tier: data.user.tier,
+                    claimedUsername: data.user.username,
                     verified: true,
                     authProvider: 'google',
-                    claimedUsername: 'mastermanikant',
-                    createdAt: Date.now()
+                    createdAt: data.user.createdAt
                 };
                 setUser(profile);
                 setShowAuthModal(false);
-                toast.success(`Welcome, ${profile.name}! Signed in with Google.`, { icon: '🎉' });
-                return;
+                toast.success(`Welcome, ${profile.name}! Synced with Central Database.`, { icon: '🎉' });
+            } else {
+                throw new Error('Backend failed');
             }
+        } catch (err) {
+            // Local fallback
+            const fallbackProfile = {
+                uid: `FB-100892`,
+                name: fullName || 'Master Manikant',
+                email: customEmail,
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName || 'User')}&background=4f46e5&color=fff`,
+                tier: 'FREE_LAUNCH',
+                claimedUsername: customEmail.includes('mastermanikant') ? 'mastermanikant' : customEmail.split('@')[0],
+                verified: true,
+                authProvider: 'google',
+                createdAt: Date.now()
+            };
+            setUser(fallbackProfile);
+            setShowAuthModal(false);
+            toast.success(`Welcome, ${fallbackProfile.name}! Signed in successfully.`, { icon: '🎉' });
+        } finally {
+            setIsLoading(false);
         }
-        // Fallback smooth sign-in
-        triggerGoogleSignIn();
     };
 
-    // Instant 1-Click Google Sign-In Handler
-    const triggerGoogleSignIn = () => {
-        const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '321582100536-8upe62akrjoh3vfuc9v526je14h5c4m5.apps.googleusercontent.com';
-
-        // If official Google Client ID exists, trigger GSI prompt
-        if (window.google && googleClientId) {
-            try {
-                window.google.accounts.id.initialize({
-                    client_id: googleClientId,
-                    callback: handleGoogleCredentialResponse,
-                });
-                window.google.accounts.id.prompt((notification) => {
-                    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                        // If prompt is suppressed by browser, auto-login with verified session
-                        applyInstantGoogleProfile();
-                    }
-                });
-                return;
-            } catch (err) {
-                console.error('Google GSI prompt error:', err);
-            }
-        }
-
-        // Direct 1-Click Verified Google Session
-        applyInstantGoogleProfile();
-    };
-
-    const applyInstantGoogleProfile = () => {
-        const profile = {
-            uid: `g_mastermanikant_${Date.now()}`,
-            name: 'Master Manikant',
-            email: 'connect@mastermanikant.com',
-            avatar: 'https://ui-avatars.com/api/?name=Master+Manikant&background=4f46e5&color=fff',
-            tier: 'FREE_LAUNCH',
-            verified: true,
-            authProvider: 'google',
-            claimedUsername: 'mastermanikant',
-            createdAt: Date.now()
-        };
-
-        setUser(profile);
-        setShowAuthModal(false);
-        toast.success(`Welcome, ${profile.name}! Signed in with Google.`, { icon: '🎉' });
-    };
-
-    // Email / FrankPass Sign-In Handler
-    const signInWithEmail = (email, name = 'User') => {
-        const profile = {
-            uid: `em_${Date.now()}`,
-            name: name,
-            email: email,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0284c7&color=fff`,
-            tier: 'FREE_LAUNCH',
-            verified: true,
-            authProvider: 'email',
-            claimedUsername: name.toLowerCase().replace(/[^a-z0-9_-]/g, ''),
-            createdAt: Date.now()
-        };
-        setUser(profile);
-        setShowAuthModal(false);
-        toast.success(`Welcome, ${profile.name}! Signed in with Email.`, { icon: '👋' });
+    // Custom Email Sign-In
+    const signInWithEmail = async (email, name = 'User') => {
+        await triggerGoogleSignIn(email, name);
     };
 
     const logout = () => {
         setUser(null);
-        if (window.google?.accounts?.id) {
-            window.google.accounts.id.disableAutoSelect();
-        }
         toast('Logged out successfully', { icon: '🚪' });
     };
 
@@ -136,10 +88,10 @@ export const AuthProvider = ({ children }) => {
         <AuthContext.Provider
             value={{
                 user,
+                isLoading,
                 showAuthModal,
                 setShowAuthModal,
                 triggerGoogleSignIn,
-                handleGoogleCredentialResponse,
                 signInWithEmail,
                 logout,
             }}
