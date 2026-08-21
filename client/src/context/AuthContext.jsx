@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }) => {
 
     // Instant 1-Click Google Sign-In Handler
     const triggerGoogleSignIn = () => {
-        const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '321582100536-8upe62akrjoh3vfuc9v526je14h5c4m5.apps.googleusercontent.com';
 
         // If official Google Client ID exists, trigger GSI prompt
         if (window.google && googleClientId) {

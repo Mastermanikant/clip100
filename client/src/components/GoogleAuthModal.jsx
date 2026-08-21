@@ -12,7 +12,7 @@ const GoogleAuthModal = () => {
     useEffect(() => {
         if (!showAuthModal) return;
 
-        const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '321582100536-8upe62akrjoh3vfuc9v526je14h5c4m5.apps.googleusercontent.com';
 
         // If official Google SDK is loaded and client ID exists, render native Google Button
         if (window.google && googleClientId && googleBtnRef.current) {
