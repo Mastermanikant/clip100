@@ -20,7 +20,9 @@ import {
     Calendar,
     AlertCircle,
     X,
-    RefreshCw
+    RefreshCw,
+    Paperclip,
+    ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
@@ -41,6 +43,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
     const [userCount, setUserCount] = useState(1);
     const [showQR, setShowQR] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
     const [isPinProtected, setIsPinProtected] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const [enteredPin, setEnteredPin] = useState('');
@@ -48,10 +51,14 @@ const Room = ({ roomType = 'ephemeral' }) => {
     const [showPinModal, setShowPinModal] = useState(false);
     const [newPin, setNewPin] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
 
     const timeoutRef = useRef(null);
     const textareaRef = useRef(null);
+    const fileInputRef = useRef(null);
     const lastContentRef = useRef('');
+    const isTypingLocallyRef = useRef(false);
+    const typingTimerRef = useRef(null);
     const broadcastChannelRef = useRef(null);
 
     // Identify mode label
@@ -60,6 +67,9 @@ const Room = ({ roomType = 'ephemeral' }) => {
 
     // Cloudflare Edge Sync Fetch
     const fetchEdgeState = async (pinToUse = roomPin) => {
+        // Skip polling overwrite if the user is actively typing right now
+        if (isTypingLocallyRef.current) return;
+
         try {
             const res = await fetch(`/api/room/${encodeURIComponent(effectiveId)}${pinToUse ? `?pin=${encodeURIComponent(pinToUse)}` : ''}`);
             if (res.ok) {
@@ -70,8 +80,9 @@ const Room = ({ roomType = 'ephemeral' }) => {
                 } else {
                     setIsLocked(false);
                     if (data.hasPin) setIsPinProtected(true);
-                    // Only update if not currently typing locally or if remote has new data
-                    if (data.content !== undefined && data.content !== lastContentRef.current) {
+
+                    // Only update if not typing locally and content differs
+                    if (!isTypingLocallyRef.current && data.content !== undefined && data.content !== lastContentRef.current) {
                         setContent(data.content);
                         lastContentRef.current = data.content;
                     }
@@ -81,7 +92,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
                 }
             }
         } catch (e) {
-            // Ignore offline errors
+            // Ignore fetch error
         }
     };
 
@@ -113,7 +124,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
             broadcastChannelRef.current.onmessage = (event) => {
                 const msg = event.data;
                 if (msg.type === 'UPDATE') {
-                    if (msg.content !== undefined) {
+                    if (!isTypingLocallyRef.current && msg.content !== undefined) {
                         setContent(msg.content);
                         lastContentRef.current = msg.content;
                     }
@@ -149,8 +160,10 @@ const Room = ({ roomType = 'ephemeral' }) => {
                         setIsLocked(true);
                     } else {
                         setIsLocked(false);
-                        setContent(data.content || '');
-                        lastContentRef.current = data.content || '';
+                        if (!isTypingLocallyRef.current) {
+                            setContent(data.content || '');
+                            lastContentRef.current = data.content || '';
+                        }
                         setImageData(data.imageData || null);
                         setUserCount(data.userCount || 1);
                         if (data.hasPin) setIsPinProtected(true);
@@ -160,10 +173,12 @@ const Room = ({ roomType = 'ephemeral' }) => {
 
             socket.on('content_updated', (data) => {
                 if (typeof data === 'string') {
-                    setContent(data);
-                    lastContentRef.current = data;
+                    if (!isTypingLocallyRef.current) {
+                        setContent(data);
+                        lastContentRef.current = data;
+                    }
                 } else if (data && typeof data === 'object') {
-                    if (data.content !== undefined) {
+                    if (!isTypingLocallyRef.current && data.content !== undefined) {
                         setContent(data.content);
                         lastContentRef.current = data.content;
                     }
@@ -214,11 +229,18 @@ const Room = ({ roomType = 'ephemeral' }) => {
         };
     }, [effectiveId, roomPin]);
 
-    // Handle Text Typing
+    // Handle Text Typing with Typing Lock to prevent race condition overwrite
     const handleTextChange = (e) => {
         const newText = e.target.value;
         setContent(newText);
         lastContentRef.current = newText;
+
+        // Set typing flag
+        isTypingLocallyRef.current = true;
+        if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = setTimeout(() => {
+            isTypingLocallyRef.current = false;
+        }, 1200);
 
         // Broadcast locally to other tabs instantly
         if (broadcastChannelRef.current) {
@@ -245,7 +267,44 @@ const Room = ({ roomType = 'ephemeral' }) => {
         }, 150);
     };
 
-    // Handle Direct Clipboard Screenshot / Image Paste (Ctrl+V Image)
+    // Helper: Process and send image file
+    const processImageFile = (file) => {
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('Image exceeds 10MB limit.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const base64 = event.target.result;
+            setImageData(base64);
+
+            // Broadcast to local tabs
+            if (broadcastChannelRef.current) {
+                broadcastChannelRef.current.postMessage({
+                    type: 'UPDATE',
+                    content: content,
+                    imageData: base64
+                });
+            }
+
+            // Socket emit
+            try {
+                socket.emit('update_content', {
+                    roomId: effectiveId,
+                    content: content,
+                    imageData: base64
+                });
+            } catch (err) {}
+
+            // Push Edge
+            pushEdgeState(content, base64, roomPin);
+            toast.success('Screenshot / Image synced live!', { icon: '📸' });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Handle Direct Clipboard Screenshot Paste (Ctrl+V Image)
     const handlePaste = (e) => {
         const items = e.clipboardData?.items;
         if (!items) return;
@@ -253,41 +312,36 @@ const Room = ({ roomType = 'ephemeral' }) => {
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
                 const blob = items[i].getAsFile();
-                if (blob) {
-                    if (blob.size > 10 * 1024 * 1024) {
-                        toast.error('Image size exceeds 10MB limit.');
-                        return;
-                    }
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        const base64 = event.target.result;
-                        setImageData(base64);
-
-                        // Broadcast to local tabs
-                        if (broadcastChannelRef.current) {
-                            broadcastChannelRef.current.postMessage({
-                                type: 'UPDATE',
-                                content: content,
-                                imageData: base64
-                            });
-                        }
-
-                        // Socket emit
-                        try {
-                            socket.emit('update_content', {
-                                roomId: effectiveId,
-                                content: content,
-                                imageData: base64
-                            });
-                        } catch (err) {}
-
-                        // Push Edge
-                        pushEdgeState(content, base64, roomPin);
-                        toast.success('Screenshot pasted & synced live!', { icon: '📸' });
-                    };
-                    reader.readAsDataURL(blob);
-                }
+                if (blob) processImageFile(blob);
             }
+        }
+    };
+
+    // Handle Mobile & Desktop File Attachment
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (file) processImageFile(file);
+    };
+
+    // Handle Drag and Drop
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        const file = e.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+            processImageFile(file);
+        } else if (file) {
+            toast.error('Please drop an image or screenshot (Max 10MB).');
         }
     };
 
@@ -302,6 +356,13 @@ const Room = ({ roomType = 'ephemeral' }) => {
             toast.success('Copied text to clipboard!');
             setTimeout(() => setCopied(false), 2000);
         }
+    };
+
+    const copyRoomUrl = () => {
+        navigator.clipboard.writeText(window.location.href);
+        setCopiedLink(true);
+        toast.success('Room link copied!');
+        setTimeout(() => setCopiedLink(false), 2000);
     };
 
     const removeImage = () => {
@@ -538,10 +599,17 @@ const Room = ({ roomType = 'ephemeral' }) => {
 
             {/* Live Workspace */}
             <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex flex-col gap-4">
-                <div className="flex-1 relative flex flex-col theme-card rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200 dark:border-slate-800">
+                <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`flex-1 relative flex flex-col theme-card rounded-2xl p-4 sm:p-6 shadow-sm border transition-all ${
+                        isDragOver ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-slate-200 dark:border-slate-800'
+                    }`}
+                >
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80 text-xs text-slate-500 dark:text-slate-400">
                         <span className="flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-primary" /> Live Edge Sync Active • Paste text or press Ctrl+V to paste screenshots
+                            <Sparkles className="w-3.5 h-3.5 text-primary" /> Live Edge Sync Active • Type text or paste/drop screenshots
                         </span>
                         <div className="flex items-center gap-3">
                             <span>{charCount} chars</span>
@@ -594,21 +662,40 @@ const Room = ({ roomType = 'ephemeral' }) => {
                         </div>
                     )}
 
-                    {/* Bottom Controls */}
-                    {(content || imageData) && (
-                        <div className="flex justify-between items-center pt-3 border-t border-slate-100 dark:border-slate-800/80">
-                            <div className="text-[11px] text-slate-400">
-                                {isCustomLink ? 'Expires after 30 days of inactivity' : (isDiary ? 'Cloud Diary • Permanent' : 'Ephemeral Session')}
-                            </div>
+                    {/* Bottom Utility Bar */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                        <div className="flex items-center gap-2">
+                            {/* Hidden file input */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-primary transition flex items-center gap-1.5 border border-slate-200 dark:border-slate-700"
+                                title="Attach Screenshot or Image from phone/PC"
+                            >
+                                <Paperclip className="w-3.5 h-3.5" />
+                                <span>Attach Image / Screenshot</span>
+                            </button>
+                            <span className="text-[11px] text-slate-400">
+                                (or drag & drop here)
+                            </span>
+                        </div>
+
+                        {(content || imageData) && (
                             <button
                                 onClick={clearAll}
                                 className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition flex items-center gap-1.5"
                                 title="Wipe room data"
                             >
-                                <Trash2 className="w-3.5 h-3.5" /> Clear All
+                                <Trash2 className="w-3.5 h-3.5" /> Clear All Text & Image
                             </button>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </main>
 
@@ -633,8 +720,15 @@ const Room = ({ roomType = 'ephemeral' }) => {
                             <QRCodeSVG value={window.location.href} size={200} />
                         </div>
 
-                        <div className="bg-slate-100 dark:bg-slate-900 p-3 rounded-xl text-xs font-mono text-slate-600 dark:text-slate-400 break-all select-all">
-                            {window.location.href}
+                        <div className="bg-slate-100 dark:bg-slate-900 p-3 rounded-xl text-xs font-mono text-slate-600 dark:text-slate-400 break-all select-all flex items-center justify-between gap-2">
+                            <span className="truncate">{window.location.href}</span>
+                            <button
+                                onClick={copyRoomUrl}
+                                className="p-1.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 text-primary shrink-0"
+                                title="Copy Link"
+                            >
+                                {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
                         </div>
 
                         <button

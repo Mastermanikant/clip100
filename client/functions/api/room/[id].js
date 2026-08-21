@@ -1,22 +1,42 @@
-// Cloudflare Pages Function for Edge Room Synchronization & In-Memory/KV Store
-// Memory store across edge requests (volatile in-memory edge cache)
+// Cloudflare Pages Function for Edge Room Synchronization & Global Cache API
 const edgeRooms = new Map();
+
+function getCacheKey(roomId) {
+  return new Request(`https://clipsync-edge-store.internal/room/${encodeURIComponent(roomId)}`, {
+    method: 'GET'
+  });
+}
 
 export async function onRequestGet({ params, request }) {
   const roomId = params.id;
   const url = new URL(request.url);
   const pin = url.searchParams.get('pin') || '';
 
-  const room = edgeRooms.get(roomId) || {
-    content: '',
-    imageData: null,
-    hasPin: false,
-    pin: null,
-    lastAccessed: Date.now(),
-    userCount: 1
-  };
+  let room = edgeRooms.get(roomId);
 
-  room.lastAccessed = Date.now();
+  // If not in local isolate memory, check Cloudflare Global Edge Cache
+  if (!room) {
+    try {
+      const cache = caches.default;
+      const cacheKey = getCacheKey(roomId);
+      const cachedRes = await cache.match(cacheKey);
+      if (cachedRes) {
+        room = await cachedRes.json();
+        edgeRooms.set(roomId, room);
+      }
+    } catch (e) {}
+  }
+
+  if (!room) {
+    room = {
+      content: '',
+      imageData: null,
+      hasPin: false,
+      pin: null,
+      lastAccessed: Date.now(),
+      userCount: 1
+    };
+  }
 
   // If room is PIN protected and pin is not provided or incorrect
   if (room.pin && room.pin !== pin) {
@@ -30,7 +50,7 @@ export async function onRequestGet({ params, request }) {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-store'
+        'Cache-Control': 'no-store, no-cache, must-revalidate'
       }
     });
   }
@@ -42,12 +62,13 @@ export async function onRequestGet({ params, request }) {
     hasPin: !!room.pin,
     isLocked: false,
     unlocked: true,
-    userCount: room.userCount || 1
+    userCount: room.userCount || 1,
+    lastAccessed: room.lastAccessed
   }), {
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'no-store'
+      'Cache-Control': 'no-store, no-cache, must-revalidate'
     }
   });
 }
@@ -67,7 +88,6 @@ export async function onRequestPost({ params, request }) {
         lastAccessed: Date.now(),
         userCount: 1
       };
-      edgeRooms.set(roomId, room);
     }
 
     if (body.content !== undefined) room.content = body.content;
@@ -77,6 +97,22 @@ export async function onRequestPost({ params, request }) {
       room.hasPin = !!body.pin;
     }
     room.lastAccessed = Date.now();
+
+    // Store in isolate memory
+    edgeRooms.set(roomId, room);
+
+    // Persist to Cloudflare Edge Cache API (stored for 30 days = 2592000s)
+    try {
+      const cache = caches.default;
+      const cacheKey = getCacheKey(roomId);
+      const cacheResponse = new Response(JSON.stringify(room), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=2592000'
+        }
+      });
+      await cache.put(cacheKey, cacheResponse);
+    } catch (cacheErr) {}
 
     return new Response(JSON.stringify({
       success: true,
@@ -88,7 +124,7 @@ export async function onRequestPost({ params, request }) {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-store'
+        'Cache-Control': 'no-store, no-cache, must-revalidate'
       }
     });
   } catch (err) {
