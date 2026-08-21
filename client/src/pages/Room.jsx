@@ -28,7 +28,9 @@ import {
     Smartphone,
     Monitor,
     Clock,
-    Plus
+    Plus,
+    FileText,
+    ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
@@ -67,6 +69,30 @@ const getDeviceInfo = () => {
     return { name, type, deviceId };
 };
 
+// Helper: Auto-linkify URLs in text
+const renderFormattedText = (text) => {
+    if (!text) return null;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    return parts.map((part, i) => {
+        if (part.match(urlRegex)) {
+            return (
+                <a
+                    key={i}
+                    href={part}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline font-semibold hover:opacity-80 break-all inline-flex items-center gap-0.5"
+                >
+                    <span>{part}</span>
+                    <ExternalLink className="w-3 h-3 inline shrink-0" />
+                </a>
+            );
+        }
+        return part;
+    });
+};
+
 const Room = ({ roomType = 'ephemeral' }) => {
     const params = useParams();
     const location = useLocation();
@@ -79,7 +105,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
     const [deviceInfo] = useState(getDeviceInfo);
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
-    const [pendingImage, setPendingImage] = useState(null);
+    const [pendingAttachment, setPendingAttachment] = useState(null);
     const [editingMsgId, setEditingMsgId] = useState(null);
     const [editText, setEditText] = useState('');
     const [userCount, setUserCount] = useState(1);
@@ -235,8 +261,8 @@ const Room = ({ roomType = 'ephemeral' }) => {
     // Send New Message / Clip
     const handleSendMessage = () => {
         const text = inputText.trim();
-        if (!text && !pendingImage) {
-            toast.error('Please type a message or attach an image');
+        if (!text && !pendingAttachment) {
+            toast.error('Please type a message or attach a file / screenshot');
             return;
         }
 
@@ -245,14 +271,20 @@ const Room = ({ roomType = 'ephemeral' }) => {
             deviceId: deviceInfo.deviceId,
             deviceName: deviceInfo.name,
             content: text,
-            imageData: pendingImage,
+            imageData: pendingAttachment?.type === 'image' ? pendingAttachment.data : null,
+            attachment: pendingAttachment ? {
+                data: pendingAttachment.data,
+                name: pendingAttachment.name,
+                size: pendingAttachment.size,
+                type: pendingAttachment.type
+            } : null,
             timestamp: Date.now()
         };
 
         const updatedMessages = [newMsg, ...messages];
         setMessages(updatedMessages);
         setInputText('');
-        setPendingImage(null);
+        setPendingAttachment(null);
 
         // Broadcast to other tabs
         if (broadcastChannelRef.current) {
@@ -395,17 +427,27 @@ const Room = ({ roomType = 'ephemeral' }) => {
         toast.success('All clips copied to clipboard!');
     };
 
-    // Process and attach image file
-    const processImageFile = (file) => {
+    // Process and attach file (Images, PDFs, Documents up to 10MB)
+    const processAttachmentFile = (file) => {
         if (!file) return;
         if (file.size > 10 * 1024 * 1024) {
-            toast.error('Image exceeds 10MB limit.');
+            toast.error('File exceeds 10MB limit.');
             return;
         }
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        const isImg = file.type.startsWith('image/');
         const reader = new FileReader();
+
         reader.onload = (event) => {
-            setPendingImage(event.target.result);
-            toast.success('Screenshot attached! Hit Send to stream.', { icon: '📸' });
+            setPendingAttachment({
+                data: event.target.result,
+                name: file.name,
+                size: file.size,
+                type: isPdf ? 'pdf' : (isImg ? 'image' : 'doc')
+            });
+            toast.success(`${isPdf ? 'PDF' : (isImg ? 'Screenshot' : 'File')} attached! Hit Send to stream.`, {
+                icon: isPdf ? '📄' : (isImg ? '📸' : '📎')
+            });
         };
         reader.readAsDataURL(file);
     };
@@ -418,14 +460,14 @@ const Room = ({ roomType = 'ephemeral' }) => {
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
                 const blob = items[i].getAsFile();
-                if (blob) processImageFile(blob);
+                if (blob) processAttachmentFile(blob);
             }
         }
     };
 
     const handleFileSelect = (e) => {
         const file = e.target.files?.[0];
-        if (file) processImageFile(file);
+        if (file) processAttachmentFile(file);
     };
 
     const handleDragOver = (e) => {
@@ -442,10 +484,8 @@ const Room = ({ roomType = 'ephemeral' }) => {
         e.preventDefault();
         setIsDragOver(false);
         const file = e.dataTransfer?.files?.[0];
-        if (file && file.type.startsWith('image/')) {
-            processImageFile(file);
-        } else if (file) {
-            toast.error('Please drop an image or screenshot (Max 10MB).');
+        if (file) {
+            processAttachmentFile(file);
         }
     };
 
@@ -756,29 +796,55 @@ const Room = ({ roomType = 'ephemeral' }) => {
                                     </div>
                                 ) : (
                                     <div className="font-mono text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words select-text">
-                                        {msg.content}
+                                        {renderFormattedText(msg.content)}
                                     </div>
                                 )}
 
                                 {/* Attached Image / Screenshot */}
-                                {msg.imageData && (
+                                {(msg.imageData || msg.attachment?.type === 'image') && (
                                     <div className="mt-3 p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
                                         <div className="flex items-center gap-3">
                                             <img
-                                                src={msg.imageData}
+                                                src={msg.imageData || msg.attachment?.data}
                                                 alt="Screenshot Clip"
                                                 className="w-16 h-16 object-cover rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm"
                                             />
                                             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                Screenshot Attached
+                                                {msg.attachment?.name || 'Screenshot Attached'}
                                             </span>
                                         </div>
                                         <button
-                                            onClick={() => downloadImage(msg.imageData, msg.id)}
+                                            onClick={() => downloadImage(msg.imageData || msg.attachment?.data, msg.id)}
                                             className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:opacity-95 transition flex items-center gap-1.5 shadow-sm"
                                         >
                                             <Download className="w-3.5 h-3.5" /> Download
                                         </button>
+                                    </div>
+                                )}
+
+                                {/* Attached PDF / Document */}
+                                {msg.attachment?.type === 'pdf' && (
+                                    <div className="mt-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                                <FileText className="w-5 h-5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <span className="text-xs font-bold text-slate-900 dark:text-white block truncate">
+                                                    {msg.attachment.name}
+                                                </span>
+                                                <span className="text-[11px] text-slate-500 font-mono">
+                                                    PDF Document • {(msg.attachment.size / 1024).toFixed(1)} KB
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <a
+                                            href={msg.attachment.data}
+                                            download={msg.attachment.name || 'document.pdf'}
+                                            className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm shrink-0"
+                                        >
+                                            <Download className="w-3.5 h-3.5" /> Download PDF
+                                        </a>
                                     </div>
                                 )}
                             </div>
@@ -795,22 +861,30 @@ const Room = ({ roomType = 'ephemeral' }) => {
                         isDragOver ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-slate-200 dark:border-slate-800'
                     }`}
                 >
-                    {/* Pending Image Preview Thumbnail */}
-                    {pendingImage && (
-                        <div className="mb-3 p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 inline-flex items-center gap-3">
-                            <img
-                                src={pendingImage}
-                                alt="Pending Attachment"
-                                className="w-12 h-12 object-cover rounded-lg border border-slate-300 dark:border-slate-700"
-                            />
+                    {/* Pending Attachment Preview Thumbnail */}
+                    {pendingAttachment && (
+                        <div className="mb-3 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 inline-flex items-center gap-3">
+                            {pendingAttachment.type === 'image' ? (
+                                <img
+                                    src={pendingAttachment.data}
+                                    alt="Pending Attachment"
+                                    className="w-12 h-12 object-cover rounded-lg border border-slate-300 dark:border-slate-700"
+                                />
+                            ) : (
+                                <div className="w-10 h-10 rounded-lg bg-rose-500 text-white flex items-center justify-center">
+                                    <FileText className="w-5 h-5" />
+                                </div>
+                            )}
                             <div className="text-xs">
-                                <span className="font-semibold text-slate-900 dark:text-white block">Screenshot Ready</span>
-                                <span className="text-[11px] text-slate-500">Will be sent with clip</span>
+                                <span className="font-semibold text-slate-900 dark:text-white block truncate max-w-[180px]">
+                                    {pendingAttachment.name || (pendingAttachment.type === 'pdf' ? 'PDF File' : 'Screenshot')}
+                                </span>
+                                <span className="text-[11px] text-slate-500">Ready to stream with clip</span>
                             </div>
                             <button
-                                onClick={() => setPendingImage(null)}
+                                onClick={() => setPendingAttachment(null)}
                                 className="p-1 rounded-md text-rose-500 hover:bg-rose-500/10 ml-2"
-                                title="Remove screenshot"
+                                title="Remove attachment"
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -818,11 +892,11 @@ const Room = ({ roomType = 'ephemeral' }) => {
                     )}
 
                     <div className="flex items-end gap-2">
-                        {/* Hidden file input */}
+                        {/* Hidden file input supporting Images, PDFs, and Docs */}
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept="image/*"
+                            accept="image/*,application/pdf,.txt,.md,.json,.csv"
                             onChange={handleFileSelect}
                             className="hidden"
                         />

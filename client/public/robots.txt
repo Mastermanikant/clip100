@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /contact
+Allow: /privacy
+Allow: /terms
+Allow: /blog
+Allow: /llms.txt
+Allow: /llms-full.txt
+
+# Strictly protect private user rooms and diaries from indexing (Rule 5 Compliance)
+Disallow: /room/
+Disallow: /r/
+Disallow: /link/
+Disallow: /l/
+Disallow: /burn/
+Disallow: /u/
+Disallow: /api/
+
+Sitemap: https://clipboard.frankbase.com/sitemap.xml

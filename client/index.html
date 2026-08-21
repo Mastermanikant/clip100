@@ -4,10 +4,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ClipSync - Instant Real-Time Clipboard & Text Sync | FrankBase</title>
-  <meta name="description" content="Instant real-time ephemeral text sharing and clipboard synchronization across mobile, tablet, and PC. No login required. Under 50ms latency by FrankBase." />
+  <title>ClipSync - Instant Real-Time Cross-Device Clipboard & Scratchpad | FrankBase</title>
+  <meta name="description" content="Copy-paste text, code, PDFs, and screenshots between mobile, tablet, and PC in real time. 100% free, ephemeral scratchpad with 30-day custom links and PIN protection by FrankBase." />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://clipboard.frankbase.com" />
+  
+  <!-- OpenGraph Social Meta Tags -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://clipboard.frankbase.com" />
+  <meta property="og:title" content="ClipSync - Instant Real-Time Cross-Device Clipboard" />
+  <meta property="og:description" content="Copy-paste text, code, PDFs, and screenshots between your phone and PC instantly under 50ms. No login required." />
+  <meta property="og:image" content="https://clipboard.frankbase.com/assets/og-image.png" />
+  
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ClipSync - Instant Real-Time Cross-Device Clipboard" />
+  <meta name="twitter:description" content="Real-time ephemeral text, PDF, and screenshot sync across PC, Android, and iOS under 50ms." />
   
   <!-- AI Manifest Reference -->
   <link rel="help" type="text/plain" href="/llms.txt" />
@@ -16,6 +28,57 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Schema.org SoftwareApplication & FAQPage JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "ClipSync",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Web, Android, iOS, Windows, macOS, Linux",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "INR"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "Master Manikant Yadav",
+          "url": "https://mastermanikant.com"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "FrankBase Digital Network",
+          "url": "https://frankbase.com"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is the difference between Quick Room and 30-Day Custom Link?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "A Quick Room is an instant ephemeral 6-digit session. A 30-Day Custom Link is a memorable URL (/link/name) active for 30 days of inactivity."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I paste screenshots and PDFs directly into ClipSync?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes! Press Ctrl+V to paste screenshots, or tap the attach button to share PDFs and images up to 10MB."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
 
   <!-- Anti-FOUC Theme Initialization Script -->
   <script>
