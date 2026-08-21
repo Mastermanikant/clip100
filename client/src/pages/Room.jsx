@@ -19,7 +19,8 @@ import {
     KeyRound,
     Calendar,
     AlertCircle,
-    X
+    X,
+    RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
@@ -43,65 +44,149 @@ const Room = ({ roomType = 'ephemeral' }) => {
     const [isPinProtected, setIsPinProtected] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const [enteredPin, setEnteredPin] = useState('');
-    const [roomPin, setRoomPin] = useState('');
+    const [roomPin, setRoomPin] = useState(() => localStorage.getItem(`clipsync_pin_${effectiveId}`) || '');
     const [showPinModal, setShowPinModal] = useState(false);
     const [newPin, setNewPin] = useState('');
+    const [isSyncing, setIsSyncing] = useState(false);
 
     const timeoutRef = useRef(null);
     const textareaRef = useRef(null);
+    const lastContentRef = useRef('');
+    const broadcastChannelRef = useRef(null);
 
     // Identify mode label
     const isCustomLink = location.pathname.startsWith('/link/') || location.pathname.startsWith('/l/') || roomType === 'custom_link';
-    const isDiary = location.pathname.startsWith('/u/') || roomType === 'diary';
+    const isDiary = location.pathname.startsWith('/u/') || roomType === 'diary' || (!location.pathname.startsWith('/room/') && !location.pathname.startsWith('/r/') && !location.pathname.startsWith('/link/') && !location.pathname.startsWith('/l/'));
 
-    useEffect(() => {
-        if (!effectiveId) return;
-
-        // Auto connect & join
-        socket.emit('join_room', {
-            roomId: effectiveId,
-            type: isCustomLink ? 'custom_link' : (isDiary ? 'diary' : 'ephemeral'),
-            pin: roomPin
-        });
-
-        socket.on('room_joined', (data) => {
-            if (data.roomId === effectiveId) {
+    // Cloudflare Edge Sync Fetch
+    const fetchEdgeState = async (pinToUse = roomPin) => {
+        try {
+            const res = await fetch(`/api/room/${encodeURIComponent(effectiveId)}${pinToUse ? `?pin=${encodeURIComponent(pinToUse)}` : ''}`);
+            if (res.ok) {
+                const data = await res.json();
                 if (data.isLocked && !data.unlocked) {
                     setIsPinProtected(true);
                     setIsLocked(true);
                 } else {
                     setIsLocked(false);
-                    setContent(data.content || '');
-                    setImageData(data.imageData || null);
-                    setUserCount(data.userCount || 1);
                     if (data.hasPin) setIsPinProtected(true);
+                    // Only update if not currently typing locally or if remote has new data
+                    if (data.content !== undefined && data.content !== lastContentRef.current) {
+                        setContent(data.content);
+                        lastContentRef.current = data.content;
+                    }
+                    if (data.imageData !== undefined) {
+                        setImageData(data.imageData);
+                    }
                 }
             }
-        });
+        } catch (e) {
+            // Ignore offline errors
+        }
+    };
 
-        socket.on('content_updated', (data) => {
-            if (typeof data === 'string') {
-                setContent(data);
-            } else if (data && typeof data === 'object') {
-                if (data.content !== undefined) setContent(data.content);
-                if (data.imageData !== undefined) setImageData(data.imageData);
-            }
-        });
+    // Push Edge State
+    const pushEdgeState = async (textToSave, imgToSave, pinToSet) => {
+        try {
+            setIsSyncing(true);
+            await fetch(`/api/room/${encodeURIComponent(effectiveId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: textToSave,
+                    imageData: imgToSave,
+                    pin: pinToSet
+                })
+            });
+            setTimeout(() => setIsSyncing(false), 300);
+        } catch (e) {
+            setIsSyncing(false);
+        }
+    };
 
-        socket.on('user_count_update', (count) => {
-            setUserCount(count);
-        });
+    useEffect(() => {
+        if (!effectiveId) return;
 
-        socket.on('pin_verified', (result) => {
-            if (result.success) {
-                setIsLocked(false);
-                setContent(result.content || '');
-                setImageData(result.imageData || null);
-                toast.success('PIN verified! Access granted.');
-            } else {
-                toast.error('Incorrect PIN. Please try again.');
-            }
-        });
+        // Initialize BroadcastChannel for instant local multi-tab sync
+        try {
+            broadcastChannelRef.current = new BroadcastChannel(`clipsync_${effectiveId}`);
+            broadcastChannelRef.current.onmessage = (event) => {
+                const msg = event.data;
+                if (msg.type === 'UPDATE') {
+                    if (msg.content !== undefined) {
+                        setContent(msg.content);
+                        lastContentRef.current = msg.content;
+                    }
+                    if (msg.imageData !== undefined) setImageData(msg.imageData);
+                } else if (msg.type === 'CLEAR') {
+                    setContent('');
+                    setImageData(null);
+                    lastContentRef.current = '';
+                }
+            };
+        } catch (e) {}
+
+        // Initial Edge Fetch
+        fetchEdgeState();
+
+        // Polling Edge fallback every 1.5 seconds for cross-device sync
+        const edgePollInterval = setInterval(() => {
+            fetchEdgeState();
+        }, 1500);
+
+        // Connect WebSocket if available
+        try {
+            socket.emit('join_room', {
+                roomId: effectiveId,
+                type: isCustomLink ? 'custom_link' : (isDiary ? 'diary' : 'ephemeral'),
+                pin: roomPin
+            });
+
+            socket.on('room_joined', (data) => {
+                if (data.roomId === effectiveId) {
+                    if (data.isLocked && !data.unlocked) {
+                        setIsPinProtected(true);
+                        setIsLocked(true);
+                    } else {
+                        setIsLocked(false);
+                        setContent(data.content || '');
+                        lastContentRef.current = data.content || '';
+                        setImageData(data.imageData || null);
+                        setUserCount(data.userCount || 1);
+                        if (data.hasPin) setIsPinProtected(true);
+                    }
+                }
+            });
+
+            socket.on('content_updated', (data) => {
+                if (typeof data === 'string') {
+                    setContent(data);
+                    lastContentRef.current = data;
+                } else if (data && typeof data === 'object') {
+                    if (data.content !== undefined) {
+                        setContent(data.content);
+                        lastContentRef.current = data.content;
+                    }
+                    if (data.imageData !== undefined) setImageData(data.imageData);
+                }
+            });
+
+            socket.on('user_count_update', (count) => {
+                setUserCount(count);
+            });
+
+            socket.on('pin_verified', (result) => {
+                if (result.success) {
+                    setIsLocked(false);
+                    setContent(result.content || '');
+                    lastContentRef.current = result.content || '';
+                    setImageData(result.imageData || null);
+                    toast.success('PIN verified! Access granted.');
+                } else {
+                    toast.error('Incorrect PIN. Please try again.');
+                }
+            });
+        } catch (err) {}
 
         const handleKeyDown = (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -117,10 +202,14 @@ const Room = ({ roomType = 'ephemeral' }) => {
         window.addEventListener('keydown', handleKeyDown);
 
         return () => {
-            socket.off('room_joined');
-            socket.off('content_updated');
-            socket.off('user_count_update');
-            socket.off('pin_verified');
+            clearInterval(edgePollInterval);
+            if (broadcastChannelRef.current) broadcastChannelRef.current.close();
+            try {
+                socket.off('room_joined');
+                socket.off('content_updated');
+                socket.off('user_count_update');
+                socket.off('pin_verified');
+            } catch (e) {}
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, [effectiveId, roomPin]);
@@ -129,15 +218,31 @@ const Room = ({ roomType = 'ephemeral' }) => {
     const handleTextChange = (e) => {
         const newText = e.target.value;
         setContent(newText);
+        lastContentRef.current = newText;
 
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
+        // Broadcast locally to other tabs instantly
+        if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+                type: 'UPDATE',
+                content: newText,
+                imageData: imageData
+            });
+        }
+
+        // Socket emit
+        try {
             socket.emit('update_content', {
                 roomId: effectiveId,
                 content: newText,
                 imageData: imageData
             });
-        }, 30);
+        } catch (err) {}
+
+        // Debounce Edge API Push
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+            pushEdgeState(newText, imageData, roomPin);
+        }, 150);
     };
 
     // Handle Direct Clipboard Screenshot / Image Paste (Ctrl+V Image)
@@ -157,12 +262,28 @@ const Room = ({ roomType = 'ephemeral' }) => {
                     reader.onload = (event) => {
                         const base64 = event.target.result;
                         setImageData(base64);
-                        socket.emit('update_content', {
-                            roomId: effectiveId,
-                            content: content,
-                            imageData: base64
-                        });
-                        toast.success('Screenshot pasted & streamed live!', { icon: '📸' });
+
+                        // Broadcast to local tabs
+                        if (broadcastChannelRef.current) {
+                            broadcastChannelRef.current.postMessage({
+                                type: 'UPDATE',
+                                content: content,
+                                imageData: base64
+                            });
+                        }
+
+                        // Socket emit
+                        try {
+                            socket.emit('update_content', {
+                                roomId: effectiveId,
+                                content: content,
+                                imageData: base64
+                            });
+                        } catch (err) {}
+
+                        // Push Edge
+                        pushEdgeState(content, base64, roomPin);
+                        toast.success('Screenshot pasted & synced live!', { icon: '📸' });
                     };
                     reader.readAsDataURL(blob);
                 }
@@ -185,11 +306,21 @@ const Room = ({ roomType = 'ephemeral' }) => {
 
     const removeImage = () => {
         setImageData(null);
-        socket.emit('update_content', {
-            roomId: effectiveId,
-            content: content,
-            imageData: null
-        });
+        if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+                type: 'UPDATE',
+                content: content,
+                imageData: null
+            });
+        }
+        try {
+            socket.emit('update_content', {
+                roomId: effectiveId,
+                content: content,
+                imageData: null
+            });
+        } catch (e) {}
+        pushEdgeState(content, null, roomPin);
         toast('Image removed', { icon: '🗑️' });
     };
 
@@ -197,7 +328,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
         if (!imageData) return;
         const link = document.createElement('a');
         link.href = imageData;
-        link.download = `clipsync-image-${effectiveId}.png`;
+        link.download = `clipsync-${effectiveId}.png`;
         link.click();
         toast.success('Downloading image...');
     };
@@ -206,23 +337,40 @@ const Room = ({ roomType = 'ephemeral' }) => {
         if (window.confirm("Are you sure you want to clear text and image for all connected devices?")) {
             setContent('');
             setImageData(null);
-            socket.emit('update_content', {
-                roomId: effectiveId,
-                content: '',
-                imageData: null
-            });
+            lastContentRef.current = '';
+
+            if (broadcastChannelRef.current) {
+                broadcastChannelRef.current.postMessage({ type: 'CLEAR' });
+            }
+
+            try {
+                socket.emit('update_content', {
+                    roomId: effectiveId,
+                    content: '',
+                    imageData: null
+                });
+            } catch (e) {}
+
+            pushEdgeState('', null, roomPin);
             toast('Room cleared', { icon: '🧹' });
         }
     };
 
     const handleUnlockPin = (e) => {
         e.preventDefault();
-        if (!enteredPin.trim()) return;
-        setRoomPin(enteredPin.trim());
-        socket.emit('verify_pin', {
-            roomId: effectiveId,
-            pin: enteredPin.trim()
-        });
+        const pin = enteredPin.trim();
+        if (!pin) return;
+        setRoomPin(pin);
+        localStorage.setItem(`clipsync_pin_${effectiveId}`, pin);
+
+        fetchEdgeState(pin);
+
+        try {
+            socket.emit('verify_pin', {
+                roomId: effectiveId,
+                pin: pin
+            });
+        } catch (e) {}
     };
 
     const handleSetPin = (e) => {
@@ -231,12 +379,19 @@ const Room = ({ roomType = 'ephemeral' }) => {
             toast.error('PIN must be at least 4 digits');
             return;
         }
-        socket.emit('set_room_pin', {
-            roomId: effectiveId,
-            pin: newPin
-        });
-        setIsPinProtected(true);
         setRoomPin(newPin);
+        setIsPinProtected(true);
+        localStorage.setItem(`clipsync_pin_${effectiveId}`, newPin);
+
+        pushEdgeState(content, imageData, newPin);
+
+        try {
+            socket.emit('set_room_pin', {
+                roomId: effectiveId,
+                pin: newPin
+            });
+        } catch (e) {}
+
         setShowPinModal(false);
         setNewPin('');
         toast.success('Room PIN protection enabled!');
@@ -330,9 +485,9 @@ const Room = ({ roomType = 'ephemeral' }) => {
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                 {userCount} {userCount === 1 ? 'device' : 'devices'}
                             </div>
-                            {isCustomLink && (
-                                <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 text-[11px] font-medium border border-indigo-500/20">
-                                    <Calendar className="w-3 h-3" /> 30-Day Active Link
+                            {isSyncing && (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-primary animate-pulse">
+                                    <RefreshCw className="w-3 h-3 animate-spin" /> Saving
                                 </span>
                             )}
                         </div>
@@ -386,7 +541,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
                 <div className="flex-1 relative flex flex-col theme-card rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200 dark:border-slate-800">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80 text-xs text-slate-500 dark:text-slate-400">
                         <span className="flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-primary" /> Live Multi-Device Sync Active (Paste text or Ctrl+V image)
+                            <Sparkles className="w-3.5 h-3.5 text-primary" /> Live Edge Sync Active • Paste text or press Ctrl+V to paste screenshots
                         </span>
                         <div className="flex items-center gap-3">
                             <span>{charCount} chars</span>
@@ -401,7 +556,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
                         value={content}
                         onChange={handleTextChange}
                         onPaste={handlePaste}
-                        placeholder="Start typing or press Ctrl+V to paste screenshots/images... Live changes stream instantly across all connected phones and computers!"
+                        placeholder="Start typing or press Ctrl+V to paste screenshots/images... Anything you paste here syncs instantly to your phone and secondary computers in real-time!"
                         className="flex-1 w-full min-h-[45vh] py-4 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 text-base sm:text-lg leading-relaxed focus:outline-none resize-none font-mono"
                         spellCheck="false"
                     />
@@ -417,9 +572,9 @@ const Room = ({ roomType = 'ephemeral' }) => {
                                 />
                                 <div>
                                     <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                        <ImageIcon className="w-3.5 h-3.5 text-primary" /> Synced Image / Screenshot
+                                        <ImageIcon className="w-3.5 h-3.5 text-primary" /> Live Streamed Screenshot / Image
                                     </div>
-                                    <p className="text-[11px] text-slate-500">Live streamed to all devices</p>
+                                    <p className="text-[11px] text-slate-500">Available to all paired devices</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -443,7 +598,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
                     {(content || imageData) && (
                         <div className="flex justify-between items-center pt-3 border-t border-slate-100 dark:border-slate-800/80">
                             <div className="text-[11px] text-slate-400">
-                                {isCustomLink ? 'Expires after 30 days of inactivity' : 'Ephemeral session auto-clears on tab exit'}
+                                {isCustomLink ? 'Expires after 30 days of inactivity' : (isDiary ? 'Cloud Diary • Permanent' : 'Ephemeral Session')}
                             </div>
                             <button
                                 onClick={clearAll}
