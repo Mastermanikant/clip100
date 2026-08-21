@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import EcosystemNewsletter from '../components/EcosystemNewsletter';
+import RatingFeedbackWidget from '../components/RatingFeedbackWidget';
 import {
     ArrowRight,
     Zap,
@@ -25,16 +26,20 @@ import {
     Link as LinkIcon,
     User,
     Calendar,
-    KeyRound
+    KeyRound,
+    Flame
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Landing = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('quick'); // 'quick' | 'custom' | 'diary'
+    const [activeTab, setActiveTab] = useState('quick'); // 'quick' | 'custom' | 'diary' | 'burn'
     const [joinCode, setJoinCode] = useState('');
     const [customSlug, setCustomSlug] = useState('');
     const [diaryUser, setDiaryUser] = useState('');
+    const [burnText, setBurnText] = useState('');
+    const [burnPin, setBurnPin] = useState('');
+    const [isCreatingBurn, setIsCreatingBurn] = useState(false);
     const [openFaq, setOpenFaq] = useState(null);
 
     // Create Ephemeral Room
@@ -80,18 +85,56 @@ const Landing = () => {
         navigate(`/${cleaned}`);
     };
 
+    // Create One-Time Burn Note
+    const handleCreateBurnNote = async (e) => {
+        e.preventDefault();
+        if (!burnText.trim()) {
+            toast.error('Please enter the secret note to burn');
+            return;
+        }
+
+        setIsCreatingBurn(true);
+        const secretId = Math.random().toString(36).slice(2, 10);
+
+        try {
+            await fetch(`/api/room/burn_${secretId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'add_message',
+                    message: {
+                        id: `msg_burn_${Date.now()}`,
+                        content: burnText.trim(),
+                        deviceName: 'Secret Sender',
+                        timestamp: Date.now()
+                    },
+                    pin: burnPin.trim() || null
+                })
+            });
+
+            setIsCreatingBurn(false);
+            const burnUrl = `${window.location.origin}/burn/${secretId}`;
+            navigator.clipboard.writeText(burnUrl);
+            toast.success('Burn Note created & link copied to clipboard!', { icon: '🔥' });
+            navigate(`/burn/${secretId}`);
+        } catch (err) {
+            setIsCreatingBurn(false);
+            toast.error('Failed to create burn note');
+        }
+    };
+
     const toggleFaq = (index) => {
         setOpenFaq(openFaq === index ? null : index);
     };
 
     const faqs = [
         {
-            q: "What is the difference between Quick Room and 30-Day Custom Link?",
-            a: "A Quick Room generates a 6-digit random code and is completely ephemeral (RAM-only, clears when tabs close). A 30-Day Custom Link lets you pick a memorable name (like /link/mani100) that stays active and reserved for your devices for 30 days of inactivity, making reconnecting instant."
+            q: "What is the difference between Quick Room, 30-Day Link, and Burn Note?",
+            a: "A Quick Room is an instant ephemeral 6-digit session. A 30-Day Custom Link is a memorable URL (/link/mani100) active for 30 days. A Burn Note is a self-destructing secret that vanishes permanently from the server after exactly 1 view."
         },
         {
             q: "Can I paste screenshots and images directly into ClipSync?",
-            a: "Yes! Simply press Ctrl+V anywhere in the room. ClipSync detects images from your clipboard, generates an instant preview, and streams it live to all connected devices with a 1-click Download button (up to 10MB per image)."
+            a: "Yes! Simply press Ctrl+V anywhere in the room or tap the attachment 📎 button on mobile. ClipSync streams it live to all connected devices with a 1-click Download button (up to 10MB per image)."
         },
         {
             q: "Can I lock my custom room with a secret PIN?",
@@ -103,11 +146,7 @@ const Landing = () => {
         },
         {
             q: "Do I need to install any software or mobile apps?",
-            a: "No. ClipSync is 100% web-based and works on all modern browsers (Chrome, Safari, Firefox, Edge, Brave) across Android, iOS, Windows, macOS, and Linux."
-        },
-        {
-            q: "How does the 30-day auto-expiry work?",
-            a: "Custom links remain active as long as you use them. If a link is not opened by any device for 30 consecutive days, the server automatically purges it to keep resources clean and prevent dead links."
+            a: "No. ClipSync is 100% web-based and works on all modern browsers across Android, iOS, Windows, macOS, and Linux. You can also tap 'Install App' for a native PWA experience."
         }
     ];
 
@@ -115,7 +154,7 @@ const Landing = () => {
         {
             step: "01",
             title: "Pick Your Mode",
-            desc: "Choose an instant 6-digit Quick Room, create a 30-Day Custom Link (/link/name), or open your Personal Diary."
+            desc: "Choose an instant Quick Room, create a 30-Day Custom Link, open your Personal Diary, or create a Self-Destructing Burn Note."
         },
         {
             step: "02",
@@ -124,8 +163,8 @@ const Landing = () => {
         },
         {
             step: "03",
-            title: "Live Text & Screenshot Sync",
-            desc: "Type or press Ctrl+V to paste screenshots. Changes broadcast bi-directionally across all devices in <50ms."
+            title: "Live Text & Screenshot Feed",
+            desc: "Type or press Ctrl+V to paste screenshots. Messages appear as individual cards tagged with your device name."
         },
         {
             step: "04",
@@ -149,7 +188,7 @@ const Landing = () => {
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     {/* Badge */}
                     <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold uppercase tracking-wider mb-6">
-                        <Sparkles className="w-3.5 h-3.5" /> Real-Time Clipboard • 30-Day Custom Links • Screenshot Paste
+                        <Sparkles className="w-3.5 h-3.5" /> Real-Time Clipboard • 30-Day Links • Screenshot Paste • Burn Notes
                     </div>
 
                     {/* Headline */}
@@ -168,36 +207,46 @@ const Landing = () => {
                     {/* Multi-Tab Creator Card */}
                     <div className="max-w-xl mx-auto theme-card rounded-3xl p-5 sm:p-7 shadow-2xl border-slate-200 dark:border-slate-800">
                         {/* Tab Switcher */}
-                        <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl mb-6 text-xs sm:text-sm font-semibold">
+                        <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl mb-6 text-xs sm:text-sm font-semibold overflow-x-auto">
                             <button
                                 onClick={() => setActiveTab('quick')}
-                                className={`flex-1 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                                className={`flex-1 py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
                                     activeTab === 'quick'
                                         ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
                                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                                 }`}
                             >
-                                <Zap className="w-4 h-4" /> Quick Room
+                                <Zap className="w-4 h-4" /> Quick
                             </button>
                             <button
                                 onClick={() => setActiveTab('custom')}
-                                className={`flex-1 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                                className={`flex-1 py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
                                     activeTab === 'custom'
                                         ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
                                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                                 }`}
                             >
-                                <LinkIcon className="w-4 h-4" /> 30-Day Link
+                                <LinkIcon className="w-4 h-4" /> 30-Day
                             </button>
                             <button
                                 onClick={() => setActiveTab('diary')}
-                                className={`flex-1 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                                className={`flex-1 py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
                                     activeTab === 'diary'
                                         ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
                                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                                 }`}
                             >
-                                <User className="w-4 h-4" /> Cloud Diary
+                                <User className="w-4 h-4" /> Diary
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('burn')}
+                                className={`flex-1 py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                                    activeTab === 'burn'
+                                        ? 'bg-rose-500 text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-rose-500'
+                                }`}
+                            >
+                                <Flame className="w-4 h-4" /> Burn Note
                             </button>
                         </div>
 
@@ -248,7 +297,7 @@ const Landing = () => {
                                     </label>
                                     <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden focus-within:border-primary transition">
                                         <span className="px-3 py-3 bg-slate-100 dark:bg-slate-800/80 text-xs font-mono text-slate-500 border-r border-slate-200 dark:border-slate-700 select-none">
-                                            clip.frankbase.com/link/
+                                            clipboard.frankbase.com/link/
                                         </span>
                                         <input
                                             type="text"
@@ -283,7 +332,7 @@ const Landing = () => {
                                     </label>
                                     <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden focus-within:border-primary transition">
                                         <span className="px-3 py-3 bg-slate-100 dark:bg-slate-800/80 text-xs font-mono text-slate-500 border-r border-slate-200 dark:border-slate-700 select-none">
-                                            clip.frankbase.com/
+                                            clipboard.frankbase.com/
                                         </span>
                                         <input
                                             type="text"
@@ -296,7 +345,7 @@ const Landing = () => {
                                         />
                                     </div>
                                     <p className="text-[11px] text-slate-400 mt-1">
-                                        Access your personal cloud notes directly at <code>clip.frankbase.com/{diaryUser || 'yourname'}</code> from any device.
+                                        Access your personal cloud notes directly at <code>clipboard.frankbase.com/{diaryUser || 'yourname'}</code> from any device.
                                     </p>
                                 </div>
 
@@ -305,6 +354,48 @@ const Landing = () => {
                                     className="w-full py-3.5 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-xl hover:opacity-95 shadow-md shadow-primary/25 transition flex items-center justify-center gap-2"
                                 >
                                     <KeyRound className="w-4 h-4" /> Open Personal Diary Room
+                                </button>
+                            </form>
+                        )}
+
+                        {/* Tab 4: Burn Note (Self-Destruct) */}
+                        {activeTab === 'burn' && (
+                            <form onSubmit={handleCreateBurnNote} className="space-y-4 text-left">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+                                        Secret Note (Self-destructs after 1 view):
+                                    </label>
+                                    <textarea
+                                        required
+                                        rows={3}
+                                        placeholder="Paste password, private API key, OTP, or secret message here..."
+                                        value={burnText}
+                                        onChange={(e) => setBurnText(e.target.value)}
+                                        className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 resize-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                                        Optional 4-Digit Unlock PIN:
+                                    </label>
+                                    <input
+                                        type="password"
+                                        maxLength={8}
+                                        placeholder="Optional Secret PIN"
+                                        value={burnPin}
+                                        onChange={(e) => setBurnPin(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono focus:outline-none focus:border-rose-500"
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={isCreatingBurn}
+                                    className="w-full py-3.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-bold rounded-xl hover:opacity-95 shadow-md shadow-rose-500/25 transition flex items-center justify-center gap-2 text-xs sm:text-sm"
+                                >
+                                    <Flame className="w-4 h-4" />
+                                    <span>{isCreatingBurn ? 'Creating Secret...' : 'Create 1-Time Burn Note & Copy Link'}</span>
                                 </button>
                             </form>
                         )}
@@ -334,7 +425,7 @@ const Landing = () => {
                         How ClipSync Works in 4 Easy Steps
                     </h2>
                     <p className="text-slate-600 dark:text-slate-400 max-w-xl mx-auto text-sm sm:text-base">
-                        Synchronize text and screenshots across unlimited devices without complex setup.
+                        Synchronize text, code, and screenshots across unlimited devices without complex setup.
                     </p>
                 </div>
 
@@ -356,6 +447,11 @@ const Landing = () => {
                         </div>
                     ))}
                 </div>
+            </section>
+
+            {/* Real User Rating & Feedback Desk */}
+            <section className="px-4 sm:px-6 lg:px-8">
+                <RatingFeedbackWidget />
             </section>
 
             {/* Interactive FAQ Accordion */}
