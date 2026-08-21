@@ -3,7 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { socket } from '../services/socket';
 import {
     Copy,
-    Users,
     Trash2,
     ArrowLeft,
     QrCode,
@@ -22,12 +21,51 @@ import {
     X,
     RefreshCw,
     Paperclip,
-    ExternalLink
+    Send,
+    Edit3,
+    CheckSquare,
+    Laptop,
+    Smartphone,
+    Monitor,
+    Clock,
+    Plus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTheme } from '../context/ThemeContext';
 import Footer from '../components/Footer';
+
+// Helper: Auto-detect device name & icon
+const getDeviceInfo = () => {
+    const ua = navigator.userAgent;
+    let name = 'Web Browser';
+    let type = 'desktop';
+
+    if (/android/i.test(ua)) {
+        name = '📱 Android Phone';
+        type = 'mobile';
+    } else if (/iPad|iPhone|iPod/.test(ua)) {
+        name = '🍎 iPhone / iPad';
+        type = 'mobile';
+    } else if (/Macintosh|Mac OS X/.test(ua)) {
+        name = '💻 Mac';
+        type = 'desktop';
+    } else if (/Windows/.test(ua)) {
+        name = '💻 Windows PC';
+        type = 'desktop';
+    } else if (/Linux/.test(ua)) {
+        name = '🐧 Linux PC';
+        type = 'desktop';
+    }
+
+    let deviceId = localStorage.getItem('clipsync_device_id');
+    if (!deviceId) {
+        deviceId = `dev_${Math.random().toString(36).slice(2, 9)}`;
+        localStorage.setItem('clipsync_device_id', deviceId);
+    }
+
+    return { name, type, deviceId };
+};
 
 const Room = ({ roomType = 'ephemeral' }) => {
     const params = useParams();
@@ -38,11 +76,15 @@ const Room = ({ roomType = 'ephemeral' }) => {
     // Determine effective roomId or slug
     const effectiveId = params.customSlug || params.roomId || params.username || location.pathname.replace(/^\/(link\/|l\/|room\/|r\/|u\/)?/, '');
 
-    const [content, setContent] = useState('');
-    const [imageData, setImageData] = useState(null); // base64 screenshot/image
+    const [deviceInfo] = useState(getDeviceInfo);
+    const [messages, setMessages] = useState([]);
+    const [inputText, setInputText] = useState('');
+    const [pendingImage, setPendingImage] = useState(null);
+    const [editingMsgId, setEditingMsgId] = useState(null);
+    const [editText, setEditText] = useState('');
     const [userCount, setUserCount] = useState(1);
     const [showQR, setShowQR] = useState(false);
-    const [copied, setCopied] = useState(false);
+    const [copiedMsgId, setCopiedMsgId] = useState(null);
     const [copiedLink, setCopiedLink] = useState(false);
     const [isPinProtected, setIsPinProtected] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
@@ -53,12 +95,8 @@ const Room = ({ roomType = 'ephemeral' }) => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
 
-    const timeoutRef = useRef(null);
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
-    const lastContentRef = useRef('');
-    const isTypingLocallyRef = useRef(false);
-    const typingTimerRef = useRef(null);
     const broadcastChannelRef = useRef(null);
 
     // Identify mode label
@@ -67,9 +105,6 @@ const Room = ({ roomType = 'ephemeral' }) => {
 
     // Cloudflare Edge Sync Fetch
     const fetchEdgeState = async (pinToUse = roomPin) => {
-        // Skip polling overwrite if the user is actively typing right now
-        if (isTypingLocallyRef.current) return;
-
         try {
             const res = await fetch(`/api/room/${encodeURIComponent(effectiveId)}${pinToUse ? `?pin=${encodeURIComponent(pinToUse)}` : ''}`);
             if (res.ok) {
@@ -80,36 +115,30 @@ const Room = ({ roomType = 'ephemeral' }) => {
                 } else {
                     setIsLocked(false);
                     if (data.hasPin) setIsPinProtected(true);
-
-                    // Only update if not typing locally and content differs
-                    if (!isTypingLocallyRef.current && data.content !== undefined && data.content !== lastContentRef.current) {
-                        setContent(data.content);
-                        lastContentRef.current = data.content;
-                    }
-                    if (data.imageData !== undefined) {
-                        setImageData(data.imageData);
+                    if (Array.isArray(data.messages)) {
+                        setMessages(data.messages);
                     }
                 }
             }
-        } catch (e) {
-            // Ignore fetch error
-        }
+        } catch (e) {}
     };
 
     // Push Edge State
-    const pushEdgeState = async (textToSave, imgToSave, pinToSet) => {
+    const postEdgeAction = async (payload) => {
         try {
             setIsSyncing(true);
-            await fetch(`/api/room/${encodeURIComponent(effectiveId)}`, {
+            const res = await fetch(`/api/room/${encodeURIComponent(effectiveId)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    content: textToSave,
-                    imageData: imgToSave,
-                    pin: pinToSet
-                })
+                body: JSON.stringify(payload)
             });
-            setTimeout(() => setIsSyncing(false), 300);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data.messages)) {
+                    setMessages(data.messages);
+                }
+            }
+            setTimeout(() => setIsSyncing(false), 250);
         } catch (e) {
             setIsSyncing(false);
         }
@@ -120,19 +149,11 @@ const Room = ({ roomType = 'ephemeral' }) => {
 
         // Initialize BroadcastChannel for instant local multi-tab sync
         try {
-            broadcastChannelRef.current = new BroadcastChannel(`clipsync_${effectiveId}`);
+            broadcastChannelRef.current = new BroadcastChannel(`clipsync_stream_${effectiveId}`);
             broadcastChannelRef.current.onmessage = (event) => {
                 const msg = event.data;
-                if (msg.type === 'UPDATE') {
-                    if (!isTypingLocallyRef.current && msg.content !== undefined) {
-                        setContent(msg.content);
-                        lastContentRef.current = msg.content;
-                    }
-                    if (msg.imageData !== undefined) setImageData(msg.imageData);
-                } else if (msg.type === 'CLEAR') {
-                    setContent('');
-                    setImageData(null);
-                    lastContentRef.current = '';
+                if (msg.type === 'MESSAGES_UPDATE') {
+                    if (Array.isArray(msg.messages)) setMessages(msg.messages);
                 }
             };
         } catch (e) {}
@@ -160,30 +181,14 @@ const Room = ({ roomType = 'ephemeral' }) => {
                         setIsLocked(true);
                     } else {
                         setIsLocked(false);
-                        if (!isTypingLocallyRef.current) {
-                            setContent(data.content || '');
-                            lastContentRef.current = data.content || '';
-                        }
-                        setImageData(data.imageData || null);
                         setUserCount(data.userCount || 1);
                         if (data.hasPin) setIsPinProtected(true);
                     }
                 }
             });
 
-            socket.on('content_updated', (data) => {
-                if (typeof data === 'string') {
-                    if (!isTypingLocallyRef.current) {
-                        setContent(data);
-                        lastContentRef.current = data;
-                    }
-                } else if (data && typeof data === 'object') {
-                    if (!isTypingLocallyRef.current && data.content !== undefined) {
-                        setContent(data.content);
-                        lastContentRef.current = data.content;
-                    }
-                    if (data.imageData !== undefined) setImageData(data.imageData);
-                }
+            socket.on('messages_stream_update', (newMessages) => {
+                if (Array.isArray(newMessages)) setMessages(newMessages);
             });
 
             socket.on('user_count_update', (count) => {
@@ -193,9 +198,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
             socket.on('pin_verified', (result) => {
                 if (result.success) {
                     setIsLocked(false);
-                    setContent(result.content || '');
-                    lastContentRef.current = result.content || '';
-                    setImageData(result.imageData || null);
+                    if (Array.isArray(result.messages)) setMessages(result.messages);
                     toast.success('PIN verified! Access granted.');
                 } else {
                     toast.error('Incorrect PIN. Please try again.');
@@ -206,7 +209,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
         const handleKeyDown = (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
-                copyToClipboard();
+                handleSendMessage();
             }
             if (e.altKey && (e.key === 'q' || e.key === 'Q')) {
                 e.preventDefault();
@@ -221,7 +224,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
             if (broadcastChannelRef.current) broadcastChannelRef.current.close();
             try {
                 socket.off('room_joined');
-                socket.off('content_updated');
+                socket.off('messages_stream_update');
                 socket.off('user_count_update');
                 socket.off('pin_verified');
             } catch (e) {}
@@ -229,45 +232,170 @@ const Room = ({ roomType = 'ephemeral' }) => {
         };
     }, [effectiveId, roomPin]);
 
-    // Handle Text Typing with Typing Lock to prevent race condition overwrite
-    const handleTextChange = (e) => {
-        const newText = e.target.value;
-        setContent(newText);
-        lastContentRef.current = newText;
+    // Send New Message / Clip
+    const handleSendMessage = () => {
+        const text = inputText.trim();
+        if (!text && !pendingImage) {
+            toast.error('Please type a message or attach an image');
+            return;
+        }
 
-        // Set typing flag
-        isTypingLocallyRef.current = true;
-        if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-        typingTimerRef.current = setTimeout(() => {
-            isTypingLocallyRef.current = false;
-        }, 1200);
+        const newMsg = {
+            id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            deviceId: deviceInfo.deviceId,
+            deviceName: deviceInfo.name,
+            content: text,
+            imageData: pendingImage,
+            timestamp: Date.now()
+        };
 
-        // Broadcast locally to other tabs instantly
+        const updatedMessages = [newMsg, ...messages];
+        setMessages(updatedMessages);
+        setInputText('');
+        setPendingImage(null);
+
+        // Broadcast to other tabs
         if (broadcastChannelRef.current) {
             broadcastChannelRef.current.postMessage({
-                type: 'UPDATE',
-                content: newText,
-                imageData: imageData
+                type: 'MESSAGES_UPDATE',
+                messages: updatedMessages
             });
         }
 
         // Socket emit
         try {
-            socket.emit('update_content', {
+            socket.emit('send_stream_message', {
                 roomId: effectiveId,
-                content: newText,
-                imageData: imageData
+                message: newMsg
             });
-        } catch (err) {}
+        } catch (e) {}
 
-        // Debounce Edge API Push
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-            pushEdgeState(newText, imageData, roomPin);
-        }, 150);
+        // Edge API push
+        postEdgeAction({
+            action: 'add_message',
+            message: newMsg,
+            pin: roomPin
+        });
+
+        toast.success('Clip sent!', { icon: '🚀' });
     };
 
-    // Helper: Process and send image file
+    // Save Edited Message
+    const handleSaveEdit = (msgId) => {
+        const updated = messages.map(m => {
+            if (m.id === msgId) {
+                return { ...m, content: editText, editedAt: Date.now() };
+            }
+            return m;
+        });
+
+        setMessages(updated);
+        setEditingMsgId(null);
+        setEditText('');
+
+        if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+                type: 'MESSAGES_UPDATE',
+                messages: updated
+            });
+        }
+
+        try {
+            socket.emit('edit_stream_message', {
+                roomId: effectiveId,
+                messageId: msgId,
+                content: editText
+            });
+        } catch (e) {}
+
+        postEdgeAction({
+            action: 'edit_message',
+            messageId: msgId,
+            content: editText,
+            pin: roomPin
+        });
+
+        toast.success('Clip updated!');
+    };
+
+    // Delete Single Message
+    const handleDeleteMessage = (msgId) => {
+        const updated = messages.filter(m => m.id !== msgId);
+        setMessages(updated);
+
+        if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+                type: 'MESSAGES_UPDATE',
+                messages: updated
+            });
+        }
+
+        try {
+            socket.emit('delete_stream_message', {
+                roomId: effectiveId,
+                messageId: msgId
+            });
+        } catch (e) {}
+
+        postEdgeAction({
+            action: 'delete_message',
+            messageId: msgId,
+            pin: roomPin
+        });
+
+        toast('Clip deleted', { icon: '🗑️' });
+    };
+
+    // Clear All Clips
+    const handleClearAll = () => {
+        if (window.confirm("Are you sure you want to clear all clips in this room for all devices?")) {
+            setMessages([]);
+
+            if (broadcastChannelRef.current) {
+                broadcastChannelRef.current.postMessage({
+                    type: 'MESSAGES_UPDATE',
+                    messages: []
+                });
+            }
+
+            try {
+                socket.emit('clear_all_stream', { roomId: effectiveId });
+            } catch (e) {}
+
+            postEdgeAction({
+                action: 'clear_all',
+                pin: roomPin
+            });
+
+            toast('All clips cleared', { icon: '🧹' });
+        }
+    };
+
+    // Copy Single Clip Content
+    const copyClip = (msg) => {
+        if (msg.content) {
+            navigator.clipboard.writeText(msg.content);
+            setCopiedMsgId(msg.id);
+            toast.success('Copied to clipboard!');
+            setTimeout(() => setCopiedMsgId(null), 2000);
+        }
+    };
+
+    // Copy Entire Room History
+    const copyAllClips = () => {
+        if (messages.length === 0) {
+            toast.error('No clips to copy');
+            return;
+        }
+        const fullText = messages
+            .map(m => `[${m.deviceName} • ${new Date(m.timestamp).toLocaleTimeString()}]:\n${m.content}`)
+            .join('\n\n---\n\n');
+
+        navigator.clipboard.writeText(fullText);
+        toast.success('All clips copied to clipboard!');
+    };
+
+    // Process and attach image file
     const processImageFile = (file) => {
         if (!file) return;
         if (file.size > 10 * 1024 * 1024) {
@@ -276,30 +404,8 @@ const Room = ({ roomType = 'ephemeral' }) => {
         }
         const reader = new FileReader();
         reader.onload = (event) => {
-            const base64 = event.target.result;
-            setImageData(base64);
-
-            // Broadcast to local tabs
-            if (broadcastChannelRef.current) {
-                broadcastChannelRef.current.postMessage({
-                    type: 'UPDATE',
-                    content: content,
-                    imageData: base64
-                });
-            }
-
-            // Socket emit
-            try {
-                socket.emit('update_content', {
-                    roomId: effectiveId,
-                    content: content,
-                    imageData: base64
-                });
-            } catch (err) {}
-
-            // Push Edge
-            pushEdgeState(content, base64, roomPin);
-            toast.success('Screenshot / Image synced live!', { icon: '📸' });
+            setPendingImage(event.target.result);
+            toast.success('Screenshot attached! Hit Send to stream.', { icon: '📸' });
         };
         reader.readAsDataURL(file);
     };
@@ -317,13 +423,11 @@ const Room = ({ roomType = 'ephemeral' }) => {
         }
     };
 
-    // Handle Mobile & Desktop File Attachment
     const handleFileSelect = (e) => {
         const file = e.target.files?.[0];
         if (file) processImageFile(file);
     };
 
-    // Handle Drag and Drop
     const handleDragOver = (e) => {
         e.preventDefault();
         setIsDragOver(true);
@@ -345,19 +449,6 @@ const Room = ({ roomType = 'ephemeral' }) => {
         }
     };
 
-    const copyToClipboard = () => {
-        if (!content && !imageData) {
-            toast.error('Nothing to copy yet!');
-            return;
-        }
-        if (content) {
-            navigator.clipboard.writeText(content);
-            setCopied(true);
-            toast.success('Copied text to clipboard!');
-            setTimeout(() => setCopied(false), 2000);
-        }
-    };
-
     const copyRoomUrl = () => {
         navigator.clipboard.writeText(window.location.href);
         setCopiedLink(true);
@@ -365,56 +456,13 @@ const Room = ({ roomType = 'ephemeral' }) => {
         setTimeout(() => setCopiedLink(false), 2000);
     };
 
-    const removeImage = () => {
-        setImageData(null);
-        if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({
-                type: 'UPDATE',
-                content: content,
-                imageData: null
-            });
-        }
-        try {
-            socket.emit('update_content', {
-                roomId: effectiveId,
-                content: content,
-                imageData: null
-            });
-        } catch (e) {}
-        pushEdgeState(content, null, roomPin);
-        toast('Image removed', { icon: '🗑️' });
-    };
-
-    const downloadImage = () => {
-        if (!imageData) return;
+    const downloadImage = (imgSrc, id) => {
+        if (!imgSrc) return;
         const link = document.createElement('a');
-        link.href = imageData;
-        link.download = `clipsync-${effectiveId}.png`;
+        link.href = imgSrc;
+        link.download = `clipsync-${id}.png`;
         link.click();
         toast.success('Downloading image...');
-    };
-
-    const clearAll = () => {
-        if (window.confirm("Are you sure you want to clear text and image for all connected devices?")) {
-            setContent('');
-            setImageData(null);
-            lastContentRef.current = '';
-
-            if (broadcastChannelRef.current) {
-                broadcastChannelRef.current.postMessage({ type: 'CLEAR' });
-            }
-
-            try {
-                socket.emit('update_content', {
-                    roomId: effectiveId,
-                    content: '',
-                    imageData: null
-                });
-            } catch (e) {}
-
-            pushEdgeState('', null, roomPin);
-            toast('Room cleared', { icon: '🧹' });
-        }
     };
 
     const handleUnlockPin = (e) => {
@@ -423,7 +471,6 @@ const Room = ({ roomType = 'ephemeral' }) => {
         if (!pin) return;
         setRoomPin(pin);
         localStorage.setItem(`clipsync_pin_${effectiveId}`, pin);
-
         fetchEdgeState(pin);
 
         try {
@@ -444,22 +491,23 @@ const Room = ({ roomType = 'ephemeral' }) => {
         setIsPinProtected(true);
         localStorage.setItem(`clipsync_pin_${effectiveId}`, newPin);
 
-        pushEdgeState(content, imageData, newPin);
-
-        try {
-            socket.emit('set_room_pin', {
-                roomId: effectiveId,
-                pin: newPin
-            });
-        } catch (e) {}
+        postEdgeAction({
+            action: 'set_pin',
+            pin: newPin
+        });
 
         setShowPinModal(false);
         setNewPin('');
         toast.success('Room PIN protection enabled!');
     };
 
-    const charCount = content.length;
-    const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+    const formatTime = (ts) => {
+        if (!ts) return '';
+        const diff = Math.floor((Date.now() - ts) / 1000);
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
     // If Room is PIN Locked
     if (isLocked) {
@@ -539,7 +587,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
                             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:inline">
                                 {isCustomLink ? 'Custom Link:' : (isDiary ? 'Cloud Diary:' : 'Room:')}
                             </span>
-                            <span className="px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-primary font-mono font-bold text-sm truncate max-w-[140px] sm:max-w-[220px]">
+                            <span className="px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-primary font-mono font-bold text-sm truncate max-w-[130px] sm:max-w-[200px]">
                                 {effectiveId}
                             </span>
                             <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium border border-emerald-500/20">
@@ -548,7 +596,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
                             </div>
                             {isSyncing && (
                                 <span className="inline-flex items-center gap-1 text-[11px] text-primary animate-pulse">
-                                    <RefreshCw className="w-3 h-3 animate-spin" /> Saving
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
                                 </span>
                             )}
                         </div>
@@ -585,117 +633,238 @@ const Room = ({ roomType = 'ephemeral' }) => {
                             <span className="hidden sm:inline">Pair Phone</span>
                         </button>
 
-                        <button
-                            onClick={copyToClipboard}
-                            className="px-4 py-2 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-95 shadow-md shadow-primary/20 transition flex items-center gap-1.5 text-xs sm:text-sm"
-                            title="Copy to Local Clipboard (Ctrl+Enter)"
-                        >
-                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                            <span>{copied ? 'Copied!' : 'Copy Text'}</span>
-                        </button>
+                        {messages.length > 0 && (
+                            <button
+                                onClick={copyAllClips}
+                                className="hidden sm:flex items-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 rounded-xl hover:text-primary text-xs font-medium transition"
+                                title="Copy All Room Clips"
+                            >
+                                <Copy className="w-4 h-4" />
+                                <span>Copy All</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </header>
 
-            {/* Live Workspace */}
-            <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex flex-col gap-4">
+            {/* Live Message Stream Workspace */}
+            <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex flex-col gap-6">
+                {/* Device Identification Bar */}
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
+                    <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        Active on this device as: <strong className="text-slate-800 dark:text-slate-200">{deviceInfo.name}</strong>
+                    </span>
+                    <span>{messages.length} {messages.length === 1 ? 'clip' : 'clips'} saved</span>
+                </div>
+
+                {/* Messages / Clips Feed */}
+                <div className="flex-1 space-y-4">
+                    {messages.length === 0 ? (
+                        <div className="theme-card rounded-3xl p-12 text-center border-dashed border-2 border-slate-200 dark:border-slate-800 space-y-4">
+                            <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-sm">
+                                <Sparkles className="w-8 h-8" />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                                Clipboard Feed is Empty
+                            </h3>
+                            <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                                Type a message below, paste a link, or press <code>Ctrl+V</code> to paste a screenshot. Each message is saved as an individual clip tagged with your device name!
+                            </p>
+                        </div>
+                    ) : (
+                        messages.map((msg) => (
+                            <div
+                                key={msg.id}
+                                className={`theme-card rounded-2xl p-4 sm:p-5 shadow-sm border transition-all ${
+                                    msg.deviceId === deviceInfo.deviceId
+                                        ? 'border-primary/30 bg-primary/[0.02]'
+                                        : 'border-slate-200 dark:border-slate-800'
+                                }`}
+                            >
+                                {/* Card Header */}
+                                <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-100 dark:border-slate-800/80 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300">
+                                            {msg.deviceName}
+                                        </span>
+                                        <span className="text-slate-400 flex items-center gap-1">
+                                            <Clock className="w-3 h-3" /> {formatTime(msg.timestamp)}
+                                        </span>
+                                        {msg.editedAt && (
+                                            <span className="text-[10px] text-amber-500 font-medium">(edited)</span>
+                                        )}
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => copyClip(msg)}
+                                            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:text-primary transition text-slate-600 dark:text-slate-300 flex items-center gap-1 text-[11px] font-medium"
+                                            title="Copy Clip Text"
+                                        >
+                                            {copiedMsgId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                            <span className="hidden sm:inline">{copiedMsgId === msg.id ? 'Copied' : 'Copy'}</span>
+                                        </button>
+
+                                        {editingMsgId !== msg.id && (
+                                            <button
+                                                onClick={() => {
+                                                    setEditingMsgId(msg.id);
+                                                    setEditText(msg.content);
+                                                }}
+                                                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:text-primary transition text-slate-600 dark:text-slate-300"
+                                                title="Edit Clip"
+                                            >
+                                                <Edit3 className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+
+                                        <button
+                                            onClick={() => handleDeleteMessage(msg.id)}
+                                            className="p-1.5 rounded-lg border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition"
+                                            title="Delete Clip"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Card Content (Text / Edit Mode) */}
+                                {editingMsgId === msg.id ? (
+                                    <div className="space-y-3 pt-1">
+                                        <textarea
+                                            value={editText}
+                                            onChange={(e) => setEditText(e.target.value)}
+                                            rows={4}
+                                            className="w-full p-3 rounded-xl border border-primary/50 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono text-sm focus:outline-none"
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => setEditingMsgId(null)}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => handleSaveEdit(msg.id)}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:opacity-95 shadow"
+                                            >
+                                                Update Clip
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="font-mono text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words select-text">
+                                        {msg.content}
+                                    </div>
+                                )}
+
+                                {/* Attached Image / Screenshot */}
+                                {msg.imageData && (
+                                    <div className="mt-3 p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <img
+                                                src={msg.imageData}
+                                                alt="Screenshot Clip"
+                                                className="w-16 h-16 object-cover rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm"
+                                            />
+                                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                Screenshot Attached
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => downloadImage(msg.imageData, msg.id)}
+                                            className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:opacity-95 transition flex items-center gap-1.5 shadow-sm"
+                                        >
+                                            <Download className="w-3.5 h-3.5" /> Download
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* Bottom Input Composer */}
                 <div
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                    className={`flex-1 relative flex flex-col theme-card rounded-2xl p-4 sm:p-6 shadow-sm border transition-all ${
+                    className={`sticky bottom-4 theme-card rounded-2xl p-3 sm:p-4 shadow-xl border transition-all ${
                         isDragOver ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-slate-200 dark:border-slate-800'
                     }`}
                 >
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80 text-xs text-slate-500 dark:text-slate-400">
-                        <span className="flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-primary" /> Live Edge Sync Active • Type text or paste/drop screenshots
-                        </span>
-                        <div className="flex items-center gap-3">
-                            <span>{charCount} chars</span>
-                            <span>•</span>
-                            <span>{wordCount} words</span>
-                        </div>
-                    </div>
-
-                    {/* Textarea */}
-                    <textarea
-                        ref={textareaRef}
-                        value={content}
-                        onChange={handleTextChange}
-                        onPaste={handlePaste}
-                        placeholder="Start typing or press Ctrl+V to paste screenshots/images... Anything you paste here syncs instantly to your phone and secondary computers in real-time!"
-                        className="flex-1 w-full min-h-[45vh] py-4 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 text-base sm:text-lg leading-relaxed focus:outline-none resize-none font-mono"
-                        spellCheck="false"
-                    />
-
-                    {/* Screenshot / Image Preview Card */}
-                    {imageData && (
-                        <div className="my-4 p-4 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <img
-                                    src={imageData}
-                                    alt="Pasted Screenshot"
-                                    className="w-20 h-20 object-cover rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm"
-                                />
-                                <div>
-                                    <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                        <ImageIcon className="w-3.5 h-3.5 text-primary" /> Live Streamed Screenshot / Image
-                                    </div>
-                                    <p className="text-[11px] text-slate-500">Available to all paired devices</p>
-                                </div>
+                    {/* Pending Image Preview Thumbnail */}
+                    {pendingImage && (
+                        <div className="mb-3 p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 inline-flex items-center gap-3">
+                            <img
+                                src={pendingImage}
+                                alt="Pending Attachment"
+                                className="w-12 h-12 object-cover rounded-lg border border-slate-300 dark:border-slate-700"
+                            />
+                            <div className="text-xs">
+                                <span className="font-semibold text-slate-900 dark:text-white block">Screenshot Ready</span>
+                                <span className="text-[11px] text-slate-500">Will be sent with clip</span>
                             </div>
-                            <div className="flex items-center gap-2 w-full sm:w-auto">
-                                <button
-                                    onClick={downloadImage}
-                                    className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:opacity-95 transition flex items-center justify-center gap-1.5 shadow-sm"
-                                >
-                                    <Download className="w-3.5 h-3.5" /> Download
-                                </button>
-                                <button
-                                    onClick={removeImage}
-                                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition flex items-center justify-center gap-1.5"
-                                >
-                                    <X className="w-3.5 h-3.5" /> Remove
-                                </button>
-                            </div>
+                            <button
+                                onClick={() => setPendingImage(null)}
+                                className="p-1 rounded-md text-rose-500 hover:bg-rose-500/10 ml-2"
+                                title="Remove screenshot"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
                     )}
 
-                    {/* Bottom Utility Bar */}
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-                        <div className="flex items-center gap-2">
-                            {/* Hidden file input */}
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleFileSelect}
-                                className="hidden"
-                            />
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-primary transition flex items-center gap-1.5 border border-slate-200 dark:border-slate-700"
-                                title="Attach Screenshot or Image from phone/PC"
-                            >
-                                <Paperclip className="w-3.5 h-3.5" />
-                                <span>Attach Image / Screenshot</span>
-                            </button>
-                            <span className="text-[11px] text-slate-400">
-                                (or drag & drop here)
-                            </span>
-                        </div>
+                    <div className="flex items-end gap-2">
+                        {/* Hidden file input */}
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                        />
 
-                        {(content || imageData) && (
-                            <button
-                                onClick={clearAll}
-                                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition flex items-center gap-1.5"
-                                title="Wipe room data"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" /> Clear All Text & Image
-                            </button>
-                        )}
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-primary transition shrink-0"
+                            title="Attach Image / Screenshot"
+                        >
+                            <Paperclip className="w-5 h-5" />
+                        </button>
+
+                        <textarea
+                            ref={textareaRef}
+                            value={inputText}
+                            onChange={(e) => setInputText(e.target.value)}
+                            onPaste={handlePaste}
+                            placeholder="Type new text, paste links, or press Ctrl+V for screenshots... (Ctrl+Enter to Send)"
+                            rows={2}
+                            className="flex-1 p-3 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 text-sm sm:text-base focus:outline-none resize-none font-mono"
+                        />
+
+                        <button
+                            onClick={handleSendMessage}
+                            className="px-5 py-3 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-xl hover:opacity-95 shadow-md shadow-primary/25 transition flex items-center gap-1.5 shrink-0"
+                        >
+                            <Send className="w-4 h-4" />
+                            <span className="hidden sm:inline">Send Clip</span>
+                        </button>
                     </div>
+
+                    {messages.length > 0 && (
+                        <div className="flex justify-between items-center pt-2.5 mt-2.5 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-400">
+                            <span>{isCustomLink ? '30-Day Active Custom Room' : 'Live Ephemeral Stream'}</span>
+                            <button
+                                onClick={handleClearAll}
+                                className="text-rose-500 hover:underline flex items-center gap-1"
+                            >
+                                <Trash2 className="w-3 h-3" /> Clear All Clips
+                            </button>
+                        </div>
+                    )}
                 </div>
             </main>
 
@@ -758,7 +927,7 @@ const Room = ({ roomType = 'ephemeral' }) => {
                             Set 4-Digit Room PIN
                         </h3>
                         <p className="text-xs text-slate-500 leading-relaxed">
-                            Protect this room so only users who know the PIN can view or edit text.
+                            Protect this room so only users who know the PIN can view or send clips.
                         </p>
 
                         <form onSubmit={handleSetPin} className="space-y-4">

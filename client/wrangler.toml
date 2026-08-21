@@ -1,0 +1,8 @@
+name = "clipboard-frankbase"
+compatibility_date = "2024-04-05"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "clipsync-db"
+database_id = "a684a06d-57e0-4d74-bed4-1b302390982b"
