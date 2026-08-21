@@ -4,12 +4,14 @@
     "project_id": "PRJ-15-CLIPBOARD-FRANKBASE",
     "project_name": "15_clipboard.frankbase.com",
     "domain": "clipboard.frankbase.com",
+    "short_alias_domain": "clip.frankbase.com",
     "canonical_url": "https://clipboard.frankbase.com",
+    "cloudflare_pages_url": "https://clipboard-frankbase.pages.dev",
     "github_repo": "https://github.com/Mastermanikant/clip100",
     "canonical_path": "D:\\01_Websites_and_Content\\MMY_Website_Project\\15_clipboard.frankbase.com",
     "tier_level": 3,
-    "status": "ACTIVE_PRODUCTION_READY",
-    "purpose": "Instant real-time ephemeral cross-device clipboard & text sharing web application (CopyPaste.me enhanced alternative).",
+    "status": "DEPLOYED_LIVE_ON_CLOUDFLARE_PAGES",
+    "purpose": "Instant real-time ephemeral cross-device clipboard, 30-day custom links (/link/name), Ctrl+V screenshot sharing, and personal cloud diary (/u/username).",
     "founder": "Master Manikant Yadav (मास्टर मणिकान्त यादव)",
     "support_email": "support@frankbase.com",
     "founder_email": "connect@mastermanikant.com",
@@ -24,8 +26,9 @@
         "src/context/ThemeContext.jsx (Persistent Light/Dark mode state)",
         "src/components/Navbar.jsx (Responsive header with theme toggle and navigation)",
         "src/components/Footer.jsx (Ecosystem footer with legal suite, founder attribution, and official domain emails)",
-        "src/pages/Landing.jsx (Hero room generator, 4-step user guide, use cases, shortcuts, and FAQ accordion)",
-        "src/pages/Room.jsx (Real-time live clipboard room with QR code pairing, active user counter, and one-touch copy)",
+        "src/pages/Landing.jsx (Hero room generator, 30-day custom links creator, cloud diary tab, 4-step user guide, and FAQ)",
+        "src/pages/Room.jsx (Real-time live clipboard room with Ctrl+V screenshot paste, QR modal, 4-digit PIN lock, and 30-day badge)",
+        "src/pages/SmartRouter.jsx (Intelligent vanity URL router)",
         "src/pages/About.jsx (Authoritative bilingual brand story and privacy-first architecture)",
         "src/pages/Contact.jsx (Support desk, bug bounty form, and official inquiry routing)",
         "src/pages/Privacy.jsx (Zero-log RAM ephemeral memory privacy policy)",
@@ -38,9 +41,9 @@
     },
     "server": {
       "path": "D:\\01_Websites_and_Content\\MMY_Website_Project\\15_clipboard.frankbase.com\\server",
-      "description": "Node.js + Express + Socket.io backend providing real-time room synchronization with in-memory store and automatic room cleanup.",
+      "description": "Node.js + Express + Socket.io backend providing real-time room synchronization, PIN lock verification, screenshot broadcasting, and 30-day garbage collection.",
       "sub_sections": [
-        "index.js (Express & Socket.io server with CORS and room management events)"
+        "index.js (Express & Socket.io server with CORS, PIN verification, and 30-day in-memory GC)"
       ]
     },
     "clipboard_deploy": {
@@ -52,8 +55,8 @@
     "consolidated_from": [
       "D:\\01_Websites_and_Content\\MMY_Website_Project\\15_clipboard.frankbase.com"
     ],
-    "total_files_migrated": 58,
-    "last_sync_timestamp": "2026-08-21 04:28:00",
-    "integrity_status": "100% PRODUCTION BUILD VERIFIED"
+    "total_files_migrated": 59,
+    "last_sync_timestamp": "2026-08-21 06:05:00",
+    "integrity_status": "100% LIVE ON CLOUDFLARE PAGES (https://clipboard-frankbase.pages.dev)"
   }
 }
