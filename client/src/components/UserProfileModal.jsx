@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 const UserProfileModal = ({ isOpen, onClose }) => {
     const { user, logout } = useAuth();
-    const [vanityUsername, setVanityUsername] = useState('mastermanikant');
+    const vanityUsername = user?.claimedUsername || user?.username || (user?.email ? user.email.split('@')[0] : 'diary');
 
     if (!isOpen || !user) return null;
 
