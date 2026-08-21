@@ -3,12 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import { Sun, Moon, Share2, BookOpen, Info, Mail, Menu, X, ShieldCheck, Flame, Download, User, LogOut } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import UserProfileModal from './UserProfileModal';
 
 const Navbar = () => {
     const { theme, toggleTheme } = useTheme();
     const { user, setShowAuthModal, logout } = useAuth();
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [showProfileModal, setShowProfileModal] = useState(false);
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [isInstallable, setIsInstallable] = useState(false);
 
@@ -108,14 +110,19 @@ const Navbar = () => {
                         {/* Google Auth / Profile Button */}
                         {user ? (
                             <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-700">
-                                <img
-                                    src={user.avatar}
-                                    alt={user.name}
-                                    className="w-8 h-8 rounded-full border border-primary/40 shadow-sm"
-                                />
-                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[100px]">
-                                    {user.name.split(' ')[0]}
-                                </span>
+                                <button
+                                    onClick={() => setShowProfileModal(true)}
+                                    className="flex items-center gap-2 hover:opacity-80 transition"
+                                >
+                                    <img
+                                        src={user.avatar}
+                                        alt={user.name}
+                                        className="w-8 h-8 rounded-full border border-primary/40 shadow-sm"
+                                    />
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[100px]">
+                                        {user.name.split(' ')[0]}
+                                    </span>
+                                </button>
                                 <button
                                     onClick={logout}
                                     className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition"
@@ -211,6 +218,12 @@ const Navbar = () => {
                     </div>
                 </div>
             )}
+
+            {/* Profile Drawer Modal */}
+            <UserProfileModal
+                isOpen={showProfileModal}
+                onClose={() => setShowProfileModal(false)}
+            />
         </header>
     );
 };
